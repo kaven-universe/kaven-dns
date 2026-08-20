@@ -30,6 +30,8 @@ textarea { width: 100%; resize: vertical; font-family: inherit; }
 .btn.secondary:hover { border-color: var(--primary); color: var(--primary); }
 .btn.danger { background: #fff; color: var(--red); border: 1px solid var(--border); }
 .btn.danger:hover { border-color: var(--red); }
+.btn.danger-solid { background: var(--red); color: #fff; }
+.btn.danger-solid:hover { background: #b91c1c; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn.sm { padding: 3px 10px; font-size: 12px; }
 
@@ -119,6 +121,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   display: flex; align-items: center; justify-content: center;
 }
 .modal { background: #fff; border-radius: 12px; width: 480px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; padding: 22px 24px; }
+.modal.sm { width: 400px; }
 .modal h3 { margin: 0 0 16px; }
 .form-row { margin-bottom: 13px; }
 .form-row label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
@@ -278,6 +281,8 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
           <div class="toolbar">
             <h3 style="margin:0">{{ t('rules.title', {n: rules.length}) }}</h3>
             <span class="grow"></span>
+            <button class="btn secondary" @click="openImport">{{ t('rules.import') }}</button>
+            <button class="btn secondary" @click="exportRules" :disabled="!rules.length">{{ t('rules.export') }}</button>
             <button class="btn" @click="openAddRule">{{ t('rules.add') }}</button>
           </div>
           <div class="tbl-scroll">
@@ -435,6 +440,45 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
     </div>
   </div>
 
+  <!-- Import modal -->
+  <div v-if="importModal.visible" class="modal-mask" @click.self="importModal.visible = false">
+    <div class="modal">
+      <h3>{{ t('rules.importTitle') }}</h3>
+      <div v-if="importModal.errors.length" class="form-errors">
+        <div v-for="(e, i) in importModal.errors" :key="i">{{ e }}</div>
+      </div>
+      <div class="form-row">
+        <label>{{ t('rules.importFile') }}</label>
+        <input type="file" accept=".json,application/json" @change="onImportFile">
+        <div class="hint" v-if="importModal.parsed">{{ t('rules.importParsed', {n: importModal.parsed.length}) }}</div>
+      </div>
+      <div class="form-row">
+        <label>{{ t('rules.importMode') }}</label>
+        <select v-model="importModal.mode">
+          <option value="merge">{{ t('rules.importMerge') }}</option>
+          <option value="replace">{{ t('rules.importReplace') }}</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn secondary" @click="importModal.visible = false">{{ t('modal.cancel') }}</button>
+        <button class="btn" :disabled="!importModal.parsed || importModal.saving" @click="doImport">
+          {{ importModal.saving ? t('modal.saving') : t('rules.import') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm dialog (replaces native confirm()) -->
+  <div v-if="confirmBox.visible" class="modal-mask" @click.self="confirmBox.visible = false">
+    <div class="modal sm">
+      <p style="margin:0 0 18px;font-size:14px">{{ confirmBox.text }}</p>
+      <div class="form-actions" style="margin-top:0">
+        <button class="btn secondary" @click="confirmBox.visible = false">{{ t('confirm.cancel') }}</button>
+        <button :class="confirmBox.danger ? 'btn danger-solid' : 'btn'" @click="confirmYes">{{ t('confirm.ok') }}</button>
+      </div>
+    </div>
+  </div>
+
   <div v-if="toast.show" class="toast" :class="toast.type">{{ toast.text }}</div>
 </div>
 
@@ -521,6 +565,18 @@ const I18N = {
     'rules.edit': 'Edit',
     'rules.remove': 'Remove',
     'rules.removeGroupConfirm': 'Remove this rule group ({n} domains)?',
+    'rules.export': 'Export',
+    'rules.exported': 'Exported {n} rules',
+    'rules.import': 'Import',
+    'rules.importTitle': 'Import Rules',
+    'rules.importFile': 'Rules file (.json)',
+    'rules.importParsed': '{n} rules found in file',
+    'rules.importMode': 'Mode',
+    'rules.importMerge': 'Merge — update rules with the same domains + type',
+    'rules.importReplace': 'Replace — delete all current rules first',
+    'rules.importReplaceConfirm': 'Replace ALL current rules with the imported ones?',
+    'rules.importBadFormat': 'Not a valid rules file (expected a JSON array of rules)',
+    'rules.importDone': 'Imported: {added} added, {updated} updated',
     'modal.addTitle': 'Add Rule',
     'modal.editTitle': 'Edit Rule',
     'modal.domains': 'Domains (one per line)',
@@ -544,6 +600,8 @@ const I18N = {
     'modal.cancel': 'Cancel',
     'modal.save': 'Save',
     'modal.saving': 'Saving...',
+    'confirm.ok': 'OK',
+    'confirm.cancel': 'Cancel',
     'settings.upstreamsTitle': 'Upstream DNS servers (raced in parallel, fastest wins)',
     'settings.upstreamPlaceholder': 'e.g. 223.5.5.5 or 8.8.8.8:53',
     'settings.remove': 'Remove',
@@ -665,6 +723,18 @@ const I18N = {
     'rules.edit': '编辑',
     'rules.remove': '删除',
     'rules.removeGroupConfirm': '删除该规则组（{n} 个域名）？',
+    'rules.export': '导出',
+    'rules.exported': '已导出 {n} 条规则',
+    'rules.import': '导入',
+    'rules.importTitle': '导入规则',
+    'rules.importFile': '规则文件（.json）',
+    'rules.importParsed': '文件包含 {n} 条规则',
+    'rules.importMode': '导入方式',
+    'rules.importMerge': '合并 —— 域名与类型相同的规则被更新',
+    'rules.importReplace': '替换 —— 先删除现有全部规则',
+    'rules.importReplaceConfirm': '确定用导入的规则替换现有全部规则吗？',
+    'rules.importBadFormat': '不是有效的规则文件（应为 JSON 规则数组）',
+    'rules.importDone': '导入完成：新增 {added}，更新 {updated}',
     'modal.addTitle': '新增规则',
     'modal.editTitle': '编辑规则',
     'modal.domains': '域名（每行一个）',
@@ -688,6 +758,8 @@ const I18N = {
     'modal.cancel': '取消',
     'modal.save': '保存',
     'modal.saving': '保存中...',
+    'confirm.ok': '确定',
+    'confirm.cancel': '取消',
     'settings.upstreamsTitle': '上游 DNS（并发竞速，取最快）',
     'settings.upstreamPlaceholder': '如 223.5.5.5 或 8.8.8.8:53',
     'settings.remove': '删除',
@@ -750,6 +822,8 @@ createApp({
       autoRefresh: true,
       rules: [],
       ruleModal: { visible: false, editing: false, saving: false, errors: [], form: {} },
+      importModal: { visible: false, saving: false, mode: 'merge', parsed: null, errors: [] },
+      confirmBox: { visible: false, text: '', action: null, danger: false },
       settings: {
         upstreams: [], forwardTimeoutMs: 3000, cacheMaxEntries: 10000,
         ttlMin: 10, ttlMax: 3600, logCapacity: 1000, dnsPort: 53, webPort: 8080,
@@ -939,13 +1013,92 @@ createApp({
       }
     },
     async deleteRule(r) {
-      if (!confirm(this.t('rules.removeGroupConfirm', { n: (r.domains || []).length }))) return;
+      this.ask(this.t('rules.removeGroupConfirm', { n: (r.domains || []).length }), async () => {
+        try {
+          await this.api('/api/rules/' + r.id, { method: 'DELETE' });
+          this.showToast(this.t('toast.removed'));
+          await this.loadRules();
+        } catch (e) {
+          this.showToast(e.message, 'error');
+        }
+      }, true);
+    },
+    // Custom confirm dialog replacing native confirm()
+    ask(text, action, danger = false) {
+      this.confirmBox = { visible: true, text, action, danger };
+    },
+    confirmYes() {
+      const action = this.confirmBox.action;
+      this.confirmBox.visible = false;
+      if (action) action();
+    },
+    // Export: fetch with auth, then download as a dated JSON file
+    async exportRules() {
       try {
-        await this.api('/api/rules/' + r.id, { method: 'DELETE' });
-        this.showToast(this.t('toast.removed'));
-        await this.loadRules();
+        const data = await this.api('/api/rules');
+        const blob = new Blob(
+          [JSON.stringify({ exportedAt: new Date().toISOString(), rules: data.rules }, null, 2)],
+          { type: 'application/json' },
+        );
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'kaven-dns-rules-' + new Date().toISOString().slice(0, 10) + '.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        this.showToast(this.t('rules.exported', { n: data.rules.length }));
       } catch (e) {
         this.showToast(e.message, 'error');
+      }
+    },
+    openImport() {
+      this.importModal = { visible: true, saving: false, mode: 'merge', parsed: null, errors: [] };
+    },
+    onImportFile(ev) {
+      const file = ev.target.files && ev.target.files[0];
+      this.importModal.parsed = null;
+      this.importModal.errors = [];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          const rules = Array.isArray(data) ? data : (Array.isArray(data.rules) ? data.rules : null);
+          if (!rules) throw new Error(this.t('rules.importBadFormat'));
+          this.importModal.parsed = rules;
+        } catch (e) {
+          this.importModal.errors = [e.message];
+        }
+      };
+      reader.onerror = () => {
+        this.importModal.errors = [reader.error && reader.error.message];
+      };
+      reader.readAsText(file);
+    },
+    async doImport() {
+      const m = this.importModal;
+      if (!m.parsed) return;
+      const go = () => this.performImport();
+      if (m.mode === 'replace') this.ask(this.t('rules.importReplaceConfirm'), go, true);
+      else go();
+    },
+    async performImport() {
+      const m = this.importModal;
+      m.saving = true;
+      m.errors = [];
+      try {
+        const r = await this.api('/api/rules/import', {
+          method: 'POST',
+          body: { rules: m.parsed, mode: m.mode },
+        });
+        m.visible = false;
+        let msg = this.t('rules.importDone', { added: r.added, updated: r.updated });
+        if (r.skipped) msg += ' · ' + (r.errors && r.errors.length ? r.errors[0] : '');
+        this.showToast(msg);
+        await this.loadRules();
+      } catch (e) {
+        m.errors = [e.message];
+      } finally {
+        m.saving = false;
       }
     },
     async loadConfig() {
@@ -1003,14 +1156,15 @@ createApp({
       }
     },
     async flushCache() {
-      if (!confirm(this.t('toast.flushConfirm'))) return;
-      try {
-        const data = await this.api('/api/cache/flush', { method: 'POST' });
-        this.showToast(this.t('toast.flushed', { n: data.flushed }));
-        this.refreshStats();
-      } catch (e) {
-        this.showToast(e.message, 'error');
-      }
+      this.ask(this.t('toast.flushConfirm'), async () => {
+        try {
+          const data = await this.api('/api/cache/flush', { method: 'POST' });
+          this.showToast(this.t('toast.flushed', { n: data.flushed }));
+          this.refreshStats();
+        } catch (e) {
+          this.showToast(e.message, 'error');
+        }
+      }, true);
     },
     async runTest() {
       if (!this.testForm.domain.trim()) return;

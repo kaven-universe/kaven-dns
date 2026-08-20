@@ -2,6 +2,7 @@
 
 const path = require('path');
 const net = require('net');
+const crypto = require('crypto');
 const express = require('express');
 const { Packet } = require('dns2');
 const { saveConfig, sanitize, hashPassword } = require('../config');
@@ -70,6 +71,66 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
     if (!rulesStore.remove(req.params.id))
       return res.status(404).json({ error: t(req.lang, 'rules.not_found') });
     res.json({ ok: true });
+  });
+
+  // Import rules from an exported file. Every entry goes through the same
+  // validation as manual editing; invalid entries are skipped and reported.
+  // mode 'merge' updates existing rules with the same domain-set + type,
+  // mode 'replace' drops all current rules first.
+  app.post('/api/rules/import', (req, res) => {
+    const body = req.body || {};
+    const incoming = Array.isArray(body.rules) ? body.rules : [];
+    const mode = body.mode === 'replace' ? 'replace' : 'merge';
+    if (!incoming.length)
+      return res.status(400).json({ error: t(req.lang, 'rules.import_empty') });
+
+    const valid = [];
+    const errors = [];
+    incoming.forEach((r, i) => {
+      const { errors: errs, value } = validateRule(r || {}, req.lang);
+      if (errs.length) errors.push(`#${i + 1}: ${errs[0]}`);
+      else valid.push({ value, src: r });
+    });
+
+    const now = Date.now();
+    let added = 0;
+    let updated = 0;
+    if (mode === 'replace') {
+      rulesStore.replaceAll(
+        valid.map(({ value, src }) => ({
+          ...value,
+          id: src && typeof src.id === 'string' && src.id ? src.id : crypto.randomUUID(),
+          createdAt: src && src.createdAt ? src.createdAt : now,
+          updatedAt: now,
+        })),
+      );
+      added = valid.length;
+    } else {
+      const sig = r => [...r.domains].sort().join('|') + '::' + r.type;
+      const existing = new Map(rulesStore.getAll().map(r => [sig(r), r]));
+      for (const { value, src } of valid) {
+        const cur = existing.get(sig(value));
+        if (cur) {
+          rulesStore.update(cur.id, value);
+          updated++;
+        } else {
+          rulesStore.add({
+            ...value,
+            createdAt: src && src.createdAt ? src.createdAt : now,
+          });
+          added++;
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      mode,
+      added,
+      updated,
+      skipped: errors.length,
+      errors: errors.slice(0, 5),
+    });
   });
 
   // Logs and stats

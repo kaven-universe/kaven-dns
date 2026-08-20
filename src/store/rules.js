@@ -190,6 +190,12 @@ class RulesStore {
     this.persist();
     return true;
   }
+
+  // Used by the import "replace" mode: swap the whole rule set at once
+  replaceAll(rules) {
+    this.rules = rules;
+    this.persist();
+  }
 }
 
 module.exports = { RulesStore, validateRule };

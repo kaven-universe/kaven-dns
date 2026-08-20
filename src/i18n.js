@@ -27,6 +27,7 @@ const MESSAGES = {
     'rules.upstream_invalid': 'Invalid upstream format; expected an IPv4 or IPv4:port',
     'rules.ttl_invalid': 'TTL must be an integer between 1 and 86400 (seconds)',
     'rules.not_found': 'Rule not found',
+    'rules.import_empty': 'The import file contains no rules',
 
     'config.upstream_bad': 'Invalid upstream format: {list}',
     'config.upstream_required': 'At least one upstream DNS server is required',
@@ -63,6 +64,7 @@ const MESSAGES = {
     'rules.upstream_invalid': '上游 DNS 格式不正确，应为 IPv4 或 IPv4:端口',
     'rules.ttl_invalid': 'TTL 必须是 1-86400 之间的整数（秒）',
     'rules.not_found': '规则不存在',
+    'rules.import_empty': '导入文件中没有规则',
 
     'config.upstream_bad': '上游格式不正确: {list}',
     'config.upstream_required': '至少需要一个上游 DNS',

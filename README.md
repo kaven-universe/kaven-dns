@@ -14,7 +14,7 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 - **Bilingual Web console** (Chinese / English, simple password authentication):
   - Language switcher on the login page and in the header; the preference is remembered and auto-detected from the browser on first visit
   - Dashboard: query volume, rule/cache/forward hits, failures, average latency, cache hit rate, live query log (domain / source filters); server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version)
-  - Rules management: table + modal editor, enable toggle, remarks
+  - Rules management: table + modal editor, enable toggle, remarks, import/export as JSON (merge by domains+type, or replace all)
   - Settings: upstream list, cache and log parameters, ports, password change, cache flush, resolve test
   - API error messages are localized too, negotiated from the `Accept-Language` header
 - **No database**: rules and config persist to `data/*.json` (atomic writes); logs and stats live in memory
@@ -82,6 +82,7 @@ Error messages are localized when an `Accept-Language: zh` (or `en`) header is s
 |---|---|---|
 | POST | `/api/auth/login` | Sign in `{password}` → `{token}` |
 | GET/POST | `/api/rules` | List / create rules |
+| POST | `/api/rules/import` | Import rules `{rules, mode: merge\|replace}` |
 | PUT/DELETE | `/api/rules/:id` | Update / delete |
 | GET | `/api/logs?domain=&source=&limit=` | Query log |
 | GET | `/api/stats` | Stats and cache info |
