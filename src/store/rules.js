@@ -8,6 +8,7 @@ const { t } = require('../i18n');
 
 const TYPES = ['A', 'AAAA', 'CNAME'];
 const MODES = ['fixed', 'forward'];
+const MAX_DOMAINS_PER_RULE = 500;
 
 const DOMAIN_RE =
   /^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/;
@@ -16,18 +17,43 @@ const HOSTNAME_RE =
 const UPSTREAM_RULE_RE = /^\d+\.\d+\.\d+\.\d+(:\d{1,5})?$/;
 
 /**
+ * Parse a domain group from an array of strings, or from a string where
+ * domains are separated by newlines / commas / semicolons / whitespace
+ * (what a textarea naturally produces). Returns deduplicated, normalized
+ * domains with empty entries removed.
+ */
+function parseDomains(input) {
+  const raw = Array.isArray(input) ? input : String(input || '').split(/[\n,;\s]+/);
+  const seen = new Set();
+  const list = [];
+  for (const item of raw) {
+    const d = normalizeDomain(item);
+    if (!d || seen.has(d)) continue;
+    seen.add(d);
+    list.push(d);
+  }
+  return list;
+}
+
+/**
  * Validate and normalize a rule. Returns { errors: string[], value: normalized fields }.
+ * A rule holds a group of domains (`domains: string[]`) sharing one
+ * configuration; editing a rule applies to the whole group at once.
  * Error messages are localized via `lang` ('zh' / 'en', default 'en').
- * For fixed mode `value` holds the IP list (comma-separated) or CNAME target;
- * for forward mode it is empty.
  */
 function validateRule(input, lang = 'en') {
   const tr = (key, args) => t(lang, key, args);
   const errors = [];
-  const domain = normalizeDomain(input.domain);
-  if (!domain) errors.push(tr('rules.domain_required'));
-  else if (domain.length > 253 || !DOMAIN_RE.test(domain))
-    errors.push(tr('rules.domain_invalid'));
+  const domains = parseDomains(input.domains !== undefined ? input.domains : input.domain);
+  if (!domains.length) errors.push(tr('rules.domains_required'));
+  else if (domains.length > MAX_DOMAINS_PER_RULE)
+    errors.push(tr('rules.domains_max', { n: MAX_DOMAINS_PER_RULE }));
+  else {
+    domains.forEach((d, i) => {
+      if (d.length > 253 || !DOMAIN_RE.test(d))
+        errors.push(tr('rules.domain_line_invalid', { n: i + 1, domain: d }));
+    });
+  }
 
   const type = TYPES.includes(input.type) ? input.type : null;
   if (!type) errors.push(tr('rules.type_invalid'));
@@ -64,7 +90,7 @@ function validateRule(input, lang = 'en') {
   return {
     errors,
     value: {
-      domain,
+      domains,
       type,
       mode,
       value,
@@ -80,6 +106,8 @@ function validateRule(input, lang = 'en') {
  * Rule store: in-memory array + rules.json persistence.
  * DNS queries read the in-memory array directly; writes persist immediately
  * and take effect right away (hot reload, no restart needed).
+ * On load, legacy rules with a single `domain` string are migrated to the
+ * `domains` array format (and the migration is persisted).
  */
 class RulesStore {
   constructor(file) {
@@ -91,9 +119,22 @@ class RulesStore {
     try {
       const arr = JSON.parse(require('fs').readFileSync(this.file, 'utf8'));
       if (!Array.isArray(arr)) return [];
-      return arr
+      let migrated = false;
+      this.rules = arr
         .filter(r => r && typeof r === 'object')
-        .map(r => ({ ...r, id: r.id || crypto.randomUUID() }));
+        .map(r => {
+          const rule = { ...r, id: r.id || crypto.randomUUID() };
+          const domains = Array.isArray(r.domains)
+            ? [...new Set(r.domains.map(normalizeDomain).filter(Boolean))]
+            : [];
+          if (r.domain !== undefined) delete rule.domain;
+          if (domains.length) rule.domains = domains;
+          else rule.domains = r.domain ? [normalizeDomain(r.domain)] : [];
+          if (JSON.stringify(rule) !== JSON.stringify(r)) migrated = true;
+          return rule;
+        });
+      if (migrated) this.persist();
+      return this.rules;
     } catch (e) {
       if (e.code !== 'ENOENT')
         console.error(`[rules] Failed to read ${this.file}: ${e.message}`);

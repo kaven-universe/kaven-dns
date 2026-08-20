@@ -13,9 +13,10 @@ const MESSAGES = {
     'auth.too_many_attempts': 'Too many attempts; retry in {s} seconds',
     'auth.not_signed_in': 'Not signed in or session expired',
 
-    'rules.domain_required': 'Domain is required',
-    'rules.domain_invalid':
-      'Invalid domain format (wildcards like *.example.com are supported)',
+    'rules.domain_line_invalid':
+      'Invalid domain "{domain}" (wildcards like *.example.com are supported)',
+    'rules.domains_required': 'At least one domain is required',
+    'rules.domains_max': 'At most {n} domains per rule',
     'rules.type_invalid': 'Record type must be A / AAAA / CNAME',
     'rules.mode_invalid': 'Mode must be fixed or forward',
     'rules.fixed_value_required': 'Fixed mode requires an IP or CNAME target',
@@ -47,8 +48,10 @@ const MESSAGES = {
     'auth.too_many_attempts': '尝试过于频繁，请 {s} 秒后重试',
     'auth.not_signed_in': '未登录或会话已过期',
 
-    'rules.domain_required': '域名不能为空',
-    'rules.domain_invalid': '域名格式不正确（支持 *.example.com 通配符）',
+    'rules.domain_line_invalid':
+      '域名 {domain} 格式不正确（支持 *.example.com 通配符）',
+    'rules.domains_required': '至少需要一个域名',
+    'rules.domains_max': '每条规则最多 {n} 个域名',
     'rules.type_invalid': '记录类型必须是 A / AAAA / CNAME',
     'rules.mode_invalid': '解析模式必须是 fixed（固定应答）或 forward（转发）',
     'rules.fixed_value_required': '固定应答需要填写 IP 或 CNAME 目标',

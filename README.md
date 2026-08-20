@@ -8,6 +8,7 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 - **Dynamic resolution rules** (add / edit / delete take effect immediately, no restart):
   - `Fixed answer`: return a specified IP (or several) or a CNAME target directly
   - `Forward`: forward the query to a third-party DNS (a per-rule upstream can be set, e.g. `8.8.8.8`); queries that match no rule go to the default upstream group
+  - **Domain groups**: one rule holds multiple domains (one per line in the editor, up to 500); they share the same configuration, and editing the rule applies to the whole group at once
 - **Answer caching**: forwarded answers are cached by their minimum TTL (bounds configurable), with LRU eviction, hit-rate stats and one-click flush
 - **Upstream racing**: default upstreams are queried in parallel and the fastest successful response wins; TC-flagged answers are automatically retried over TCP
 - **Bilingual Web console** (Chinese / English, simple password authentication):
@@ -44,13 +45,16 @@ nslookup test.local 127.0.0.1
 
 ## Rule Matching
 
-| Rule domain | Matches |
+A rule holds a group of domain patterns; a query matches the rule when it matches any pattern in the group. The table below is per pattern:
+
+| Pattern | Matches |
 |---|---|
 | `example.com` | itself and all subdomains (dnsmasq style) |
 | `*.example.com` | subdomains only, not itself |
 
-- Priority: rules with more labels (longer suffix) win; among equal label counts, plain rules beat wildcards
+- Priority: patterns with more labels (longer suffix) win; among equal label counts, plain patterns beat wildcards. When different rules tie on specificity, the newer rule wins — so an override added after a group rule takes effect.
 - Record types must match the query type; CNAME rules are the exception — an A/AAAA query returns the CNAME plus the target's resolved records
+- Legacy rules persisted with a single `domain` field are migrated to the `domains` array automatically on startup
 
 ## Configuration
 

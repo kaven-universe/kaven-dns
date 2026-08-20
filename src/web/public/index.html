@@ -18,11 +18,12 @@ body {
   font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
 }
 button { font: inherit; cursor: pointer; border: none; border-radius: 6px; }
-input, select {
+input, select, textarea {
   font: inherit; padding: 7px 10px; border: 1px solid var(--border);
   border-radius: 6px; background: #fff; color: var(--text); outline: none;
 }
-input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,.12); }
+input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,.12); }
+textarea { width: 100%; resize: vertical; font-family: inherit; }
 .btn { padding: 7px 16px; background: var(--primary); color: #fff; }
 .btn:hover { background: var(--primary-dark); }
 .btn.secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
@@ -273,12 +274,12 @@ td.wrap { white-space: normal; word-break: break-all; max-width: 420px; }
           <div class="tbl-scroll">
             <table>
               <thead>
-                <tr><th>{{ t('rules.colDomain') }}</th><th>{{ t('rules.colType') }}</th><th>{{ t('rules.colMode') }}</th><th>{{ t('rules.colValue') }}</th><th>{{ t('rules.colTtl') }}</th><th>{{ t('rules.colEnabled') }}</th><th>{{ t('rules.colRemark') }}</th><th>{{ t('rules.colActions') }}</th></tr>
+                <tr><th>{{ t('rules.colDomains') }}</th><th>{{ t('rules.colType') }}</th><th>{{ t('rules.colMode') }}</th><th>{{ t('rules.colValue') }}</th><th>{{ t('rules.colTtl') }}</th><th>{{ t('rules.colEnabled') }}</th><th>{{ t('rules.colRemark') }}</th><th>{{ t('rules.colActions') }}</th></tr>
               </thead>
               <tbody>
                 <tr v-if="!rules.length"><td colspan="8" class="empty">{{ t('rules.empty') }}</td></tr>
                 <tr v-for="r in rules" :key="r.id">
-                  <td class="wrap" style="font-weight:600">{{ r.domain }}</td>
+                  <td class="wrap" style="font-weight:600" :title="r.domains.join('\n')">{{ domainsDisplay(r) }}</td>
                   <td>{{ r.type }}</td>
                   <td><span class="badge" :class="r.mode === 'fixed' ? 'fixed' : 'forward'">{{ r.mode === 'fixed' ? t('rules.modeFixed') : t('rules.modeForward') }}</span></td>
                   <td class="wrap">{{ r.mode === 'fixed' ? r.value : (r.upstream || t('rules.defaultUpstreams')) }}</td>
@@ -375,9 +376,9 @@ td.wrap { white-space: normal; word-break: break-all; max-width: 420px; }
         <div v-for="(e, i) in ruleModal.errors" :key="i">{{ e }}</div>
       </div>
       <div class="form-row">
-        <label>{{ t('modal.domain') }}</label>
-        <input v-model="ruleModal.form.domain" :placeholder="t('modal.domainPlaceholder')">
-        <div class="hint">{{ t('modal.domainHint') }}</div>
+        <label>{{ t('modal.domains') }}</label>
+        <textarea v-model="ruleModal.form.domainsText" rows="5" :placeholder="t('modal.domainsPlaceholder')"></textarea>
+        <div class="hint">{{ t('modal.domainsHint') }}</div>
       </div>
       <div class="form-row">
         <label>{{ t('modal.recordType') }}</label>
@@ -482,7 +483,7 @@ const I18N = {
     'rules.title': 'Rules ({n})',
     'rules.add': '+ Add Rule',
     'rules.empty': 'No rules yet. Click "Add Rule" to create one; queries that match no rule are forwarded to the default upstreams',
-    'rules.colDomain': 'Domain',
+    'rules.colDomains': 'Domains',
     'rules.colType': 'Type',
     'rules.colMode': 'Mode',
     'rules.colValue': 'Value / Upstream',
@@ -490,17 +491,18 @@ const I18N = {
     'rules.colEnabled': 'Enabled',
     'rules.colRemark': 'Remark',
     'rules.colActions': 'Actions',
+    'rules.domainsMore': ' +{n} more',
     'rules.modeFixed': 'Fixed',
     'rules.modeForward': 'Forward',
     'rules.defaultUpstreams': 'Default upstreams',
     'rules.edit': 'Edit',
     'rules.remove': 'Remove',
-    'rules.removeConfirm': 'Remove rule {domain}?',
+    'rules.removeGroupConfirm': 'Remove this rule group ({n} domains)?',
     'modal.addTitle': 'Add Rule',
     'modal.editTitle': 'Edit Rule',
-    'modal.domain': 'Domain',
-    'modal.domainPlaceholder': 'example.com or *.example.com',
-    'modal.domainHint': 'example.com matches itself and all subdomains; *.example.com matches subdomains only; longer suffixes win',
+    'modal.domains': 'Domains (one per line)',
+    'modal.domainsPlaceholder': 'example.com\n*.example.com\nhost.example.com',
+    'modal.domainsHint': 'example.com matches itself and all subdomains; *.example.com matches subdomains only; longer suffixes win. All domains in one rule share the same configuration and are edited together.',
     'modal.recordType': 'Record Type',
     'modal.mode': 'Mode',
     'modal.modeFixed': 'Fixed answer (return the specified IP / domain directly)',
@@ -613,7 +615,7 @@ const I18N = {
     'rules.title': '解析规则（{n} 条）',
     'rules.add': '+ 新增规则',
     'rules.empty': '还没有规则，点击「新增规则」创建；未命中规则的查询将转发到默认上游',
-    'rules.colDomain': '域名',
+    'rules.colDomains': '域名',
     'rules.colType': '类型',
     'rules.colMode': '模式',
     'rules.colValue': '值 / 上游',
@@ -621,17 +623,18 @@ const I18N = {
     'rules.colEnabled': '启用',
     'rules.colRemark': '备注',
     'rules.colActions': '操作',
+    'rules.domainsMore': ' 等 {n} 个',
     'rules.modeFixed': '固定应答',
     'rules.modeForward': '转发',
     'rules.defaultUpstreams': '默认上游',
     'rules.edit': '编辑',
     'rules.remove': '删除',
-    'rules.removeConfirm': '确定删除规则 {domain} 吗？',
+    'rules.removeGroupConfirm': '删除该规则组（{n} 个域名）？',
     'modal.addTitle': '新增规则',
     'modal.editTitle': '编辑规则',
-    'modal.domain': '域名',
-    'modal.domainPlaceholder': 'example.com 或 *.example.com',
-    'modal.domainHint': 'example.com 匹配自身及所有子域名；*.example.com 仅匹配子域名；更长后缀优先',
+    'modal.domains': '域名（每行一个）',
+    'modal.domainsPlaceholder': 'example.com\n*.example.com\nhost.example.com',
+    'modal.domainsHint': 'example.com 匹配自身及所有子域名；*.example.com 仅匹配子域名；更长后缀优先。一条规则内的所有域名共享同一配置，修改时整组一起生效。',
     'modal.recordType': '记录类型',
     'modal.mode': '解析模式',
     'modal.modeFixed': '固定应答（直接返回指定 IP / 域名）',
@@ -845,7 +848,7 @@ createApp({
     },
     emptyRuleForm() {
       return {
-        domain: '', type: 'A', mode: 'fixed', value: '',
+        domainsText: '', type: 'A', mode: 'fixed', value: '',
         upstream: '', ttl: 60, enabled: true, remark: '',
       };
     },
@@ -858,16 +861,26 @@ createApp({
     openEditRule(r) {
       this.ruleModal = {
         visible: true, editing: true, saving: false, errors: [],
-        form: { ...r },
+        form: { ...r, domainsText: (r.domains || []).join('\n') },
       };
+    },
+    domainsDisplay(r) {
+      const list = r.domains || [];
+      if (list.length <= 5) return list.join(', ');
+      return list.slice(0, 5).join(', ') + this.t('rules.domainsMore', { n: list.length - 5 });
     },
     async saveRule() {
       const m = this.ruleModal;
       m.saving = true;
       m.errors = [];
+      const { domainsText, ...rest } = m.form;
+      const body = {
+        ...rest,
+        domains: (domainsText || '').split(/\n+/).map(s => s.trim()).filter(Boolean),
+      };
       try {
-        if (m.editing) await this.api('/api/rules/' + m.form.id, { method: 'PUT', body: m.form });
-        else await this.api('/api/rules', { method: 'POST', body: m.form });
+        if (m.editing) await this.api('/api/rules/' + body.id, { method: 'PUT', body });
+        else await this.api('/api/rules', { method: 'POST', body });
         m.visible = false;
         this.showToast(this.t('toast.ruleSaved'));
         await this.loadRules();
@@ -886,7 +899,7 @@ createApp({
       }
     },
     async deleteRule(r) {
-      if (!confirm(this.t('rules.removeConfirm', { domain: r.domain }))) return;
+      if (!confirm(this.t('rules.removeGroupConfirm', { n: (r.domains || []).length }))) return;
       try {
         await this.api('/api/rules/' + r.id, { method: 'DELETE' });
         this.showToast(this.t('toast.removed'));

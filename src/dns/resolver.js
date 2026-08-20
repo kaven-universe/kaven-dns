@@ -7,9 +7,15 @@ const { TYPE_NAMES } = require('./util');
 
 const MAX_CNAME_DEPTH = 4;
 
-function ruleLabel(rule) {
+// Log/test label: the matched pattern plus the group size, e.g.
+// "web.dev.local (+19)" for a 20-domain rule, with an optional remark.
+function ruleLabel(rule, pattern) {
   if (!rule) return '';
-  return rule.remark ? `${rule.domain} (${rule.remark})` : rule.domain;
+  const domains = rule.domains || [];
+  let label = pattern || domains[0] || '';
+  if (domains.length > 1) label += ` (+${domains.length - 1})`;
+  if (rule.remark) label += ` (${rule.remark})`;
+  return label;
 }
 
 /**
@@ -32,10 +38,11 @@ class Resolver {
     const config = this.getConfig();
     const domain = normalizeDomain(rawDomain);
     const tName = TYPE_NAMES[typeNumber];
-    const rule = tName ? findMatch(this.rulesStore.getAll(), domain, tName) : null;
+    const found = tName ? findMatch(this.rulesStore.getAll(), domain, tName) : null;
+    const rule = found && found.rule;
 
     if (rule && rule.mode === 'fixed') {
-      return this.buildFixedAnswer(rule, domain, typeNumber, tName, depth, visited);
+      return this.buildFixedAnswer(rule, domain, typeNumber, tName, depth, visited, found.pattern);
     }
 
     const upstreams =
@@ -46,7 +53,7 @@ class Resolver {
 
     const hit = this.cache.get(cacheKey);
     if (hit) {
-      return { ...hit, source: 'cache', ruleLabel: rule ? ruleLabel(rule) : '' };
+      return { ...hit, source: 'cache', ruleLabel: rule ? ruleLabel(rule, found.pattern) : '' };
     }
 
     const result = await forwardQuery(domain, typeNumber, upstreams, config.forwardTimeoutMs)
@@ -62,7 +69,7 @@ class Resolver {
         authorities: [],
         additionals: [],
         source: 'forward',
-        ruleLabel: rule ? ruleLabel(rule) : '',
+        ruleLabel: rule ? ruleLabel(rule, found.pattern) : '',
       };
     }
 
@@ -77,7 +84,7 @@ class Resolver {
         .map(a => ({ ...a })),
       source: 'forward',
       upstream,
-      ruleLabel: rule ? ruleLabel(rule) : '',
+      ruleLabel: rule ? ruleLabel(rule, found.pattern) : '',
     };
     if (out.rcode === Packet.RCODE.NOERROR && out.answers.length) {
       const minTtl = Math.min(
@@ -93,8 +100,8 @@ class Resolver {
     return out;
   }
 
-  async buildFixedAnswer(rule, domain, typeNumber, tName, depth, visited) {
-    const label = ruleLabel(rule);
+  async buildFixedAnswer(rule, domain, typeNumber, tName, depth, visited, pattern) {
+    const label = ruleLabel(rule, pattern);
     const base = {
       rcode: Packet.RCODE.NOERROR,
       authorities: [],
