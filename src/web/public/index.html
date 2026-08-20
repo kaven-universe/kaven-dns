@@ -993,7 +993,11 @@ createApp({
       return map[rcode] || 'rcode ' + rcode;
     },
     fmtTime(t) {
-      return new Date(t).toLocaleTimeString([], { hour12: false });
+      const d = new Date(t);
+      const p = n => String(n).padStart(2, '0');
+      const ms = String(d.getMilliseconds()).padStart(3, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
+        `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${ms}`;
     },
     fmtDuration(ms) {
       if (ms == null) return '-';
