@@ -176,9 +176,9 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
     <header>
       <div class="brand"><span class="dot"></span>Kaven DNS</div>
       <nav>
-        <a href="#" :class="{active: tab==='dashboard'}" @click.prevent="switchTab('dashboard')">{{ t('nav.dashboard') }}</a>
-        <a href="#" :class="{active: tab==='rules'}" @click.prevent="switchTab('rules')">{{ t('nav.rules') }}</a>
-        <a href="#" :class="{active: tab==='settings'}" @click.prevent="switchTab('settings')">{{ t('nav.settings') }}</a>
+        <a href="#/dashboard" :class="{active: tab==='dashboard'}">{{ t('nav.dashboard') }}</a>
+        <a href="#/rules" :class="{active: tab==='rules'}">{{ t('nav.rules') }}</a>
+        <a href="#/settings" :class="{active: tab==='settings'}">{{ t('nav.settings') }}</a>
       </nav>
       <div class="lang-switch" style="margin-right:14px">
         <button :class="{on: locale==='zh'}" @click="setLocale('zh')">中文</button>
@@ -484,6 +484,11 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 
 <script>
 const { createApp } = Vue;
+
+function tabFromHash() {
+  const h = (location.hash || '').replace(/^#\/?/, '');
+  return ['dashboard', 'rules', 'settings'].includes(h) ? h : 'dashboard';
+}
 
 const I18N = {
   en: {
@@ -815,7 +820,8 @@ createApp({
       authed: false,
       token: localStorage.getItem('kaven_dns_token') || '',
       loginPassword: '', loginError: '', loginLoading: false,
-      tab: 'dashboard',
+      // The active tab lives in the URL hash (#/dashboard, #/rules, #/settings)
+      tab: tabFromHash(),
       stats: {}, cacheInfo: {}, systemInfo: {},
       logs: [],
       logFilter: { domain: '', source: '' },
@@ -846,6 +852,15 @@ createApp({
   },
   async mounted() {
     this.applyLocaleMeta();
+    // Hash routing: clicking a nav link changes the hash; back/forward and
+    // page reloads go through here too
+    window.addEventListener('hashchange', () => {
+      const t = tabFromHash();
+      if (t !== this.tab) {
+        this.tab = t;
+        if (t === 'settings') this.loadConfig();
+      }
+    });
     if (this.token) {
       try {
         await this.api('/api/auth/check');
@@ -934,10 +949,6 @@ createApp({
     async enterApp() {
       this.authed = true;
       await Promise.allSettled([this.refreshStats(), this.refreshLogs(), this.loadRules(), this.loadConfig()]);
-    },
-    switchTab(tab) {
-      this.tab = tab;
-      if (tab === 'settings') this.loadConfig();
     },
     async refreshStats() {
       try {
