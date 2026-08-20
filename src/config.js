@@ -21,6 +21,9 @@ const DEFAULTS = {
   ttlMax: 3600,
   // Number of query log entries kept in memory
   logCapacity: 1000,
+  // Web console session lifetime in hours; sessions are renewed on activity,
+  // so this is effectively an idle timeout
+  sessionTtlHours: 24,
   // sha256 hash of the Web console password; generated on first run
   passwordHash: '',
 };
@@ -74,6 +77,7 @@ function sanitize(config) {
   config.ttlMin = clampInt(config.ttlMin, 1, 3600, DEFAULTS.ttlMin);
   config.ttlMax = clampInt(config.ttlMax, config.ttlMin, 86400, DEFAULTS.ttlMax);
   config.logCapacity = clampInt(config.logCapacity, 100, 10000, DEFAULTS.logCapacity);
+  config.sessionTtlHours = clampInt(config.sessionTtlHours, 1, 720, DEFAULTS.sessionTtlHours);
   config.passwordHash = String(config.passwordHash || '');
   return config;
 }
@@ -120,6 +124,7 @@ function saveConfig(config) {
 module.exports = {
   DATA_DIR,
   RULES_FILE: path.join(DATA_DIR, 'rules.json'),
+  SESSIONS_FILE: path.join(DATA_DIR, 'sessions.json'),
   loadConfig,
   saveConfig,
   sanitize,

@@ -187,8 +187,16 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
     <main>
       <!-- Dashboard -->
       <section v-show="tab==='dashboard'">
+        <!-- Server & resources -->
         <div class="stat-grid">
-          <div class="stat"><div class="label">{{ t('stats.total') }}</div><div class="value">{{ stats.total ?? 0 }}</div><div class="sub">{{ t('stats.uptime') }} {{ fmtDuration(stats.uptimeMs) }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.uptimeCard') }}</div><div class="value">{{ fmtDuration(stats.uptimeMs) }}</div><div class="sub">{{ t('stats.startedAt', {time: fmtDateTime(stats.startedAt)}) }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.cpu') }}</div><div class="value">{{ systemInfo.processCpu ?? 0 }}%</div><div class="sub">{{ t('stats.processCpu', {n: systemInfo.processCpu ?? 0}) }} · {{ t('stats.systemCpu', {n: systemInfo.systemCpu ?? 0}) }} · {{ t('stats.cores', {n: systemInfo.cores ?? 0}) }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.memory') }}</div><div class="value">{{ t('stats.processMem', {n: systemInfo.processRSSMB ?? 0}) }}</div><div class="sub">{{ t('stats.systemMem', {used: ((systemInfo.usedMemMB ?? 0)/1024).toFixed(1), total: ((systemInfo.totalMemMB ?? 0)/1024).toFixed(1)}) }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.server') }}</div><div class="value" style="font-size:18px;word-break:break-all">{{ systemInfo.hostname || '-' }}</div><div class="sub" :title="systemInfo.release">{{ systemInfo.platform }} · {{ systemInfo.arch }} · Node {{ (systemInfo.nodeVersion || '').replace('v','') }}</div></div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat"><div class="label">{{ t('stats.total') }}</div><div class="value">{{ stats.total ?? 0 }}</div><div class="sub">{{ t('stats.allQueries') }}</div></div>
           <div class="stat"><div class="label">{{ t('stats.fixed') }}</div><div class="value">{{ stats.fixed ?? 0 }}</div><div class="sub">{{ t('stats.fixedSub') }}</div></div>
           <div class="stat"><div class="label">{{ t('stats.cache') }}</div><div class="value">{{ stats.cache ?? 0 }}</div><div class="sub">{{ t('stats.hitRate', {n: cacheInfo.hitRate ?? 0}) }}</div></div>
           <div class="stat"><div class="label">{{ t('stats.forward') }}</div><div class="value">{{ stats.forward ?? 0 }}</div><div class="sub">{{ t('stats.avgMs', {n: stats.forwardAvgMs ?? 0}) }}</div></div>
@@ -357,7 +365,12 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
               <button class="btn danger" @click="flushCache">{{ t('settings.flushCache') }}</button>
             </div>
             <div class="card">
-              <h3>{{ t('settings.changePassword') }}</h3>
+              <h3>{{ t('settings.security') }}</h3>
+              <div class="form-row">
+                <label>{{ t('settings.sessionTtl') }}</label>
+                <input type="number" v-model.number="settings.sessionTtlHours">
+                <div class="hint">{{ t('settings.sessionTtlHint') }}</div>
+              </div>
               <div class="form-row"><label>{{ t('settings.currentPassword') }}</label><input type="password" v-model="pwForm.current"></div>
               <div class="form-row"><label>{{ t('settings.newPassword') }}</label><input type="password" v-model="pwForm.next"></div>
               <div class="form-row"><label>{{ t('settings.confirmPassword') }}</label><input type="password" v-model="pwForm.confirm"></div>
@@ -441,7 +454,6 @@ const I18N = {
     'nav.settings': 'Settings',
     'nav.signOut': 'Sign Out',
     'stats.total': 'Total Queries',
-    'stats.uptime': 'Uptime',
     'stats.fixed': 'Rule Hits',
     'stats.fixedSub': 'Fixed answers',
     'stats.cache': 'Cache Hits',
@@ -454,6 +466,16 @@ const I18N = {
     'stats.allQueries': 'All queries',
     'stats.failedResolutions': 'Failed resolutions',
     'stats.nonExistent': 'Non-existent domains',
+    'stats.uptimeCard': 'Uptime',
+    'stats.startedAt': 'Since {time}',
+    'stats.cpu': 'CPU Usage',
+    'stats.processCpu': 'Process {n}%',
+    'stats.systemCpu': 'System {n}%',
+    'stats.cores': '{n} cores',
+    'stats.memory': 'Memory',
+    'stats.processMem': 'Process {n} MB',
+    'stats.systemMem': 'System {used} / {total} GB',
+    'stats.server': 'Server',
     'test.title': 'Resolve Test',
     'test.placeholder': 'Enter a domain, e.g. example.com',
     'test.button': 'Test',
@@ -544,6 +566,9 @@ const I18N = {
     'settings.cacheInfo': '{entries} entries · {hits} hits · {rate}% hit rate',
     'settings.flushCache': 'Flush Cache',
     'settings.changePassword': 'Change Password',
+    'settings.security': 'Security',
+    'settings.sessionTtl': 'Session validity (hours, 1-720)',
+    'settings.sessionTtlHint': 'Idle timeout: the session is renewed on activity and survives server restarts',
     'settings.currentPassword': 'Current password',
     'settings.newPassword': 'New password (min 6 characters)',
     'settings.confirmPassword': 'Confirm new password',
@@ -573,7 +598,6 @@ const I18N = {
     'nav.settings': '设置',
     'nav.signOut': '退出登录',
     'stats.total': '总查询数',
-    'stats.uptime': '运行',
     'stats.fixed': '规则命中',
     'stats.fixedSub': '固定应答',
     'stats.cache': '缓存命中',
@@ -586,6 +610,16 @@ const I18N = {
     'stats.allQueries': '全部查询',
     'stats.failedResolutions': '解析失败',
     'stats.nonExistent': '域名不存在',
+    'stats.uptimeCard': '运行时间',
+    'stats.startedAt': '启动于 {time}',
+    'stats.cpu': 'CPU 占用',
+    'stats.processCpu': '进程 {n}%',
+    'stats.systemCpu': '系统 {n}%',
+    'stats.cores': '{n} 核心',
+    'stats.memory': '内存',
+    'stats.processMem': '进程 {n} MB',
+    'stats.systemMem': '系统 {used} / {total} GB',
+    'stats.server': '服务器',
     'test.title': '解析测试',
     'test.placeholder': '输入域名，如 example.com',
     'test.button': '测试',
@@ -676,6 +710,9 @@ const I18N = {
     'settings.cacheInfo': '{entries} 条 · 命中 {hits} 次 · 命中率 {rate}%',
     'settings.flushCache': '清空缓存',
     'settings.changePassword': '修改密码',
+    'settings.security': '安全',
+    'settings.sessionTtl': '会话有效期（小时，1-720）',
+    'settings.sessionTtlHint': '空闲超时：活跃使用自动续期，服务重启后保持登录',
     'settings.currentPassword': '当前密码',
     'settings.newPassword': '新密码（至少 6 位）',
     'settings.confirmPassword': '确认新密码',
@@ -707,7 +744,7 @@ createApp({
       token: localStorage.getItem('kaven_dns_token') || '',
       loginPassword: '', loginError: '', loginLoading: false,
       tab: 'dashboard',
-      stats: {}, cacheInfo: {},
+      stats: {}, cacheInfo: {}, systemInfo: {},
       logs: [],
       logFilter: { domain: '', source: '' },
       autoRefresh: true,
@@ -716,6 +753,7 @@ createApp({
       settings: {
         upstreams: [], forwardTimeoutMs: 3000, cacheMaxEntries: 10000,
         ttlMin: 10, ttlMax: 3600, logCapacity: 1000, dnsPort: 53, webPort: 8080,
+        sessionTtlHours: 24,
       },
       savingSettings: false, savingPw: false,
       pwForm: { current: '', next: '', confirm: '' },
@@ -832,6 +870,7 @@ createApp({
         const data = await this.api('/api/stats');
         this.stats = data.stats;
         this.cacheInfo = data.cache;
+        this.systemInfo = data.system || {};
       } catch (_) { /* silent polling failure */ }
     },
     async refreshLogs() {
@@ -920,6 +959,7 @@ createApp({
           ttlMin: c.ttlMin, ttlMax: c.ttlMax,
           logCapacity: c.logCapacity,
           dnsPort: c.dnsPort, webPort: c.webPort,
+          sessionTtlHours: c.sessionTtlHours,
         };
       } catch (e) {
         this.showToast(e.message, 'error');
@@ -935,6 +975,7 @@ createApp({
           ttlMin: this.settings.ttlMin, ttlMax: this.settings.ttlMax,
           logCapacity: this.settings.logCapacity,
           dnsPort: this.settings.dnsPort, webPort: this.settings.webPort,
+          sessionTtlHours: this.settings.sessionTtlHours,
         };
         const data = await this.api('/api/config', { method: 'PUT', body });
         this.showToast(data.restartRequired ? this.t('toast.savedRestart') : this.t('toast.saved'));
@@ -999,6 +1040,12 @@ createApp({
       const ms = String(d.getMilliseconds()).padStart(3, '0');
       return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
         `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${ms}`;
+    },
+    fmtDateTime(t) {
+      if (t == null) return '-';
+      const d = new Date(t);
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
     },
     fmtDuration(ms) {
       if (ms == null) return '-';

@@ -1,6 +1,6 @@
 'use strict';
 
-const { DATA_DIR, RULES_FILE, loadConfig, saveConfig, hashPassword } = require('./config');
+const { DATA_DIR, RULES_FILE, SESSIONS_FILE, loadConfig, saveConfig, hashPassword } = require('./config');
 const { RulesStore } = require('./store/rules');
 const { LogStore } = require('./store/logs');
 const { DnsCache } = require('./dns/cache');
@@ -19,6 +19,8 @@ async function main() {
   const dns = createDnsServers({ resolver, logs, port: config.dnsPort });
   const auth = createAuth({
     verifyPassword: password => hashPassword(password) === config.passwordHash,
+    getSessionTtlMs: () => config.sessionTtlHours * 3600 * 1000,
+    sessionsFile: SESSIONS_FILE,
   });
   const web = createWebServer({ config, rulesStore, logs, cache, resolver, auth });
 

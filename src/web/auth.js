@@ -1,25 +1,60 @@
 'use strict';
 
+const fs = require('fs');
 const crypto = require('crypto');
+const { atomicWriteJson } = require('../config');
 const { t } = require('../i18n');
 
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_FAILS = 5;
 const LOCK_MS = 10 * 1000;
 
 /**
  * Simple password authentication: a successful login issues a random token
- * (in-memory session, valid for 24 hours). Five consecutive failures lock
- * the source IP for 10 seconds. Error messages are localized via `lang`.
+ * (in-memory session). The lifetime comes from getSessionTtlMs() and is
+ * renewed on every authenticated request, so it acts as an idle timeout.
+ * Sessions are persisted to `sessionsFile` so server restarts keep users
+ * logged in. Five consecutive failures lock the source IP for 10 seconds.
+ * Error messages are localized via `lang`.
  */
-function createAuth({ verifyPassword }) {
-  const sessions = new Map(); // token -> expiresAt
+function createAuth({ verifyPassword, getSessionTtlMs, sessionsFile }) {
+  let sessions = new Map(); // token -> expiresAt
   const fails = new Map(); // ip -> { count, lockedUntil }
+  let dirty = false;
+
+  if (sessionsFile) {
+    try {
+      const saved = JSON.parse(fs.readFileSync(sessionsFile, 'utf8'));
+      const now = Date.now();
+      for (const [token, exp] of Object.entries(saved || {})) {
+        if (typeof exp === 'number' && exp > now) sessions.set(token, exp);
+      }
+    } catch (e) {
+      if (e.code !== 'ENOENT')
+        console.error(`[auth] failed to read ${sessionsFile}: ${e.message}`);
+    }
+  }
+
+  function persist() {
+    if (!sessionsFile) return;
+    try {
+      atomicWriteJson(sessionsFile, Object.fromEntries(sessions));
+      dirty = false;
+    } catch (e) {
+      console.error(`[auth] failed to write ${sessionsFile}: ${e.message}`);
+    }
+  }
 
   const timer = setInterval(() => {
     const now = Date.now();
-    for (const [token, exp] of sessions) if (exp < now) sessions.delete(token);
+    for (const [token, exp] of sessions) {
+      if (exp < now) {
+        sessions.delete(token);
+        dirty = true;
+      }
+    }
     for (const [ip, f] of fails) if (f.lockedUntil && f.lockedUntil < now) fails.delete(ip);
+    // Flush login/logout and sliding renewals without writing on every request
+    if (dirty) persist();
   }, 60 * 1000);
   timer.unref();
 
@@ -41,12 +76,14 @@ function createAuth({ verifyPassword }) {
     }
     fails.delete(ip);
     const token = crypto.randomBytes(24).toString('hex');
-    sessions.set(token, Date.now() + SESSION_TTL_MS);
+    sessions.set(token, Date.now() + getSessionTtlMs());
+    persist();
     return { ok: true, token };
   }
 
   function logout(token) {
     sessions.delete(token);
+    persist();
   }
 
   function check(token) {
@@ -54,8 +91,12 @@ function createAuth({ verifyPassword }) {
     if (!exp) return false;
     if (exp < Date.now()) {
       sessions.delete(token);
+      persist();
       return false;
     }
+    // Sliding renewal: activity extends the session by another full TTL
+    sessions.set(token, Date.now() + getSessionTtlMs());
+    dirty = true;
     return true;
   }
 

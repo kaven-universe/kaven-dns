@@ -35,6 +35,7 @@ const MESSAGES = {
     'config.port_range': '{key} must be an integer between 1 and 65535',
     'config.current_password_incorrect': 'Current password is incorrect',
     'config.password_min': 'New password must be at least 6 characters',
+    'config.session_ttl_range': 'Session validity must be an integer between 1 and 720 hours',
 
     'resolve.domain_required': 'Domain is required',
     'resolve.unsupported_type': 'Unsupported type {type}',
@@ -70,6 +71,7 @@ const MESSAGES = {
     'config.port_range': '{key} 必须是 1-65535 的整数',
     'config.current_password_incorrect': '当前密码不正确',
     'config.password_min': '新密码至少 6 位',
+    'config.session_ttl_range': '会话有效期必须是 1-720 之间的整数（小时）',
 
     'resolve.domain_required': '域名不能为空',
     'resolve.unsupported_type': '不支持的类型 {type}',

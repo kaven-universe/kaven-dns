@@ -13,7 +13,7 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 - **Upstream racing**: default upstreams are queried in parallel and the fastest successful response wins; TC-flagged answers are automatically retried over TCP
 - **Bilingual Web console** (Chinese / English, simple password authentication):
   - Language switcher on the login page and in the header; the preference is remembered and auto-detected from the browser on first visit
-  - Dashboard: query volume, rule/cache/forward hits, failures, average latency, cache hit rate, live query log (domain / source filters)
+  - Dashboard: query volume, rule/cache/forward hits, failures, average latency, cache hit rate, live query log (domain / source filters); server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version)
   - Rules management: table + modal editor, enable toggle, remarks
   - Settings: upstream list, cache and log parameters, ports, password change, cache flush, resolve test
   - API error messages are localized too, negotiated from the `Accept-Language` header
@@ -69,6 +69,7 @@ A rule holds a group of domain patterns; a query matches the rule when it matche
 | `cacheMaxEntries` | 10000 | Max cache entries (LRU) |
 | `ttlMin` / `ttlMax` | 10 / 3600 | Cache TTL clamp range (seconds) |
 | `logCapacity` | 1000 | Query log entries kept in memory |
+| `sessionTtlHours` | 24 | Web console session validity in hours; renewed on activity (idle timeout) and persisted across restarts |
 
 Environment variables: `KAVEN_DNS_PORT` / `KAVEN_WEB_PORT` temporarily override the ports (useful for debugging).
 
@@ -95,6 +96,7 @@ src/
 ├── index.js          # Entry point: wires everything together and starts DNS + Web
 ├── config.js         # Config load/persist (password generated on first run)
 ├── i18n.js           # zh/en message dictionaries for user-facing API errors
+├── system.js         # Server info + CPU/memory sampling for dashboard cards
 ├── dns/
 │   ├── server.js     # UDP + TCP DNS server (dns2)
 │   ├── resolver.js   # Resolution pipeline: rule → fixed / cache / forward
@@ -114,4 +116,4 @@ src/
 ## Notes
 
 - The frontend loads Vue 3 from the jsdelivr CDN; for offline use, replace the script in `index.html` with a local copy
-- Session tokens are kept in memory; the process restart requires signing in again
+- Login sessions are stored in `data/sessions.json` (idle timeout, renewed on activity) so server restarts keep you signed in

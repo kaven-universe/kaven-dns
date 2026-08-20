@@ -9,11 +9,13 @@ const { validateRule } = require('../store/rules');
 const { normalizeDomain } = require('../dns/matching');
 const { typeName, summarizeAnswers } = require('../dns/util');
 const { t, normalizeLang } = require('../i18n');
+const { createSystemMonitor } = require('../system');
 
 const UPSTREAM_RE = /^\d+\.\d+\.\d+\.\d+(:\d{1,5})?$/;
 
 function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
   const app = express();
+  const systemMonitor = createSystemMonitor();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '256kb' }));
   app.use(express.static(path.join(__dirname, 'public')));
@@ -83,7 +85,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
   });
 
   app.get('/api/stats', (req, res) => {
-    res.json({ stats: logs.getStats(), cache: cache.info() });
+    res.json({ stats: logs.getStats(), cache: cache.info(), system: systemMonitor.snapshot() });
   });
 
   // Cache management
@@ -124,6 +126,13 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
       }
     }
 
+    if (body.sessionTtlHours !== undefined) {
+      const n = Number(body.sessionTtlHours);
+      if (!Number.isInteger(n) || n < 1 || n > 720)
+        errors.push(tr('config.session_ttl_range'));
+      else nums.sessionTtlHours = n;
+    }
+
     let portChanged = false;
     for (const key of ['dnsPort', 'webPort']) {
       if (body[key] !== undefined) {
@@ -158,6 +167,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
       config.logCapacity = nums.logCapacity;
       logs.setCapacity(nums.logCapacity);
     }
+    if (nums.sessionTtlHours !== undefined) config.sessionTtlHours = nums.sessionTtlHours;
     if (nums.dnsPort !== undefined) config.dnsPort = nums.dnsPort;
     if (nums.webPort !== undefined) config.webPort = nums.webPort;
     if (passwordChanged) config.passwordHash = hashPassword(String(body.newPassword));
