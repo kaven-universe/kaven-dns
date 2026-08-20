@@ -1,0 +1,243 @@
+'use strict';
+
+const path = require('path');
+const net = require('net');
+const express = require('express');
+const { Packet } = require('dns2');
+const { saveConfig, sanitize, hashPassword } = require('../config');
+const { validateRule } = require('../store/rules');
+const { normalizeDomain } = require('../dns/matching');
+const { typeName, summarizeAnswers } = require('../dns/util');
+const { t, normalizeLang } = require('../i18n');
+
+const UPSTREAM_RE = /^\d+\.\d+\.\d+\.\d+(:\d{1,5})?$/;
+
+function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
+  const app = express();
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '256kb' }));
+  app.use(express.static(path.join(__dirname, 'public')));
+
+  // Negotiate the response language for user-facing API messages ('zh'/'en')
+  app.use((req, res, next) => {
+    req.lang = normalizeLang(req.headers['accept-language']);
+    next();
+  });
+
+  // ---- Authentication ----
+  app.post('/api/auth/login', (req, res) => {
+    const ip = req.socket.remoteAddress || 'unknown';
+    const result = auth.login(String((req.body && req.body.password) || ''), ip, req.lang);
+    if (!result.ok) return res.status(401).json({ error: result.error });
+    res.json({ token: result.token });
+  });
+
+  app.post('/api/auth/logout', auth.middleware, (req, res) => {
+    const header = req.headers.authorization || '';
+    auth.logout(header.startsWith('Bearer ') ? header.slice(7) : '');
+    res.json({ ok: true });
+  });
+
+  app.get('/api/auth/check', auth.middleware, (req, res) => {
+    res.json({ ok: true });
+  });
+
+  // ---- All APIs below require authentication ----
+  app.use('/api', auth.middleware);
+
+  // Rule CRUD
+  app.get('/api/rules', (req, res) => {
+    res.json({ rules: rulesStore.list() });
+  });
+
+  app.post('/api/rules', (req, res) => {
+    const { errors, value } = validateRule(req.body || {}, req.lang);
+    if (errors.length) return res.status(400).json({ error: errors.join('; ') });
+    res.status(201).json({ rule: rulesStore.add(value) });
+  });
+
+  app.put('/api/rules/:id', (req, res) => {
+    const old = rulesStore.getAll().find(r => r.id === req.params.id);
+    if (!old) return res.status(404).json({ error: t(req.lang, 'rules.not_found') });
+    const { errors, value } = validateRule({ ...old, ...req.body }, req.lang);
+    if (errors.length) return res.status(400).json({ error: errors.join('; ') });
+    res.json({ rule: rulesStore.update(req.params.id, value) });
+  });
+
+  app.delete('/api/rules/:id', (req, res) => {
+    if (!rulesStore.remove(req.params.id))
+      return res.status(404).json({ error: t(req.lang, 'rules.not_found') });
+    res.json({ ok: true });
+  });
+
+  // Logs and stats
+  app.get('/api/logs', (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 200, 1000);
+    res.json({
+      logs: logs.list({
+        limit,
+        domain: String(req.query.domain || ''),
+        source: String(req.query.source || ''),
+      }),
+    });
+  });
+
+  app.get('/api/stats', (req, res) => {
+    res.json({ stats: logs.getStats(), cache: cache.info() });
+  });
+
+  // Cache management
+  app.post('/api/cache/flush', (req, res) => {
+    const flushed = cache.flush();
+    res.json({ ok: true, flushed });
+  });
+
+  // Config read/write (never returns the password hash)
+  app.get('/api/config', (req, res) => {
+    const { passwordHash, ...rest } = config;
+    res.json({ config: { ...rest, hasPassword: Boolean(passwordHash) } });
+  });
+
+  app.put('/api/config', (req, res) => {
+    const body = req.body || {};
+    const lang = req.lang;
+    const tr = (key, args) => t(lang, key, args);
+    const errors = [];
+
+    if (body.upstreams !== undefined) {
+      const list = Array.isArray(body.upstreams)
+        ? body.upstreams.map(s => String(s).trim()).filter(Boolean)
+        : [];
+      const bad = list.filter(s => !UPSTREAM_RE.test(s) && !net.isIPv6(s));
+      if (bad.length) errors.push(tr('config.upstream_bad', { list: bad.join(', ') }));
+      if (!list.length) errors.push(tr('config.upstream_required'));
+      if (list.length > 8) errors.push(tr('config.upstream_max'));
+      body._upstreams = list;
+    }
+
+    const nums = {};
+    for (const key of ['forwardTimeoutMs', 'cacheMaxEntries', 'ttlMin', 'ttlMax', 'logCapacity']) {
+      if (body[key] !== undefined) {
+        const n = Number(body[key]);
+        if (!Number.isFinite(n)) errors.push(tr('config.must_be_number', { key }));
+        nums[key] = n;
+      }
+    }
+
+    let portChanged = false;
+    for (const key of ['dnsPort', 'webPort']) {
+      if (body[key] !== undefined) {
+        const n = Number(body[key]);
+        if (!Number.isInteger(n) || n < 1 || n > 65535)
+          errors.push(tr('config.port_range', { key }));
+        else if (n !== config[key]) portChanged = true;
+        nums[key] = n;
+      }
+    }
+
+    let passwordChanged = false;
+    if (body.newPassword !== undefined && body.newPassword !== '') {
+      if (!body.currentPassword || hashPassword(body.currentPassword) !== config.passwordHash)
+        errors.push(tr('config.current_password_incorrect'));
+      else if (String(body.newPassword).length < 6)
+        errors.push(tr('config.password_min'));
+      else passwordChanged = true;
+    }
+
+    if (errors.length) return res.status(400).json({ error: errors.join('; ') });
+
+    if (body._upstreams) config.upstreams = body._upstreams;
+    if (nums.forwardTimeoutMs !== undefined) config.forwardTimeoutMs = nums.forwardTimeoutMs;
+    if (nums.cacheMaxEntries !== undefined) {
+      config.cacheMaxEntries = nums.cacheMaxEntries;
+      cache.setMaxEntries(nums.cacheMaxEntries);
+    }
+    if (nums.ttlMin !== undefined) config.ttlMin = nums.ttlMin;
+    if (nums.ttlMax !== undefined) config.ttlMax = nums.ttlMax;
+    if (nums.logCapacity !== undefined) {
+      config.logCapacity = nums.logCapacity;
+      logs.setCapacity(nums.logCapacity);
+    }
+    if (nums.dnsPort !== undefined) config.dnsPort = nums.dnsPort;
+    if (nums.webPort !== undefined) config.webPort = nums.webPort;
+    if (passwordChanged) config.passwordHash = hashPassword(String(body.newPassword));
+
+    sanitize(config);
+    saveConfig(config);
+    res.json({ ok: true, restartRequired: portChanged, passwordChanged });
+  });
+
+  // Resolve test: goes through the full pipeline (rules/cache included) for
+  // debugging from the console UI
+  app.post('/api/resolve', async (req, res) => {
+    const domain = normalizeDomain((req.body && req.body.domain) || '');
+    const tName = String((req.body && req.body.type) || 'A').toUpperCase();
+    if (!domain) return res.status(400).json({ error: t(req.lang, 'resolve.domain_required') });
+    const typeNum = Packet.TYPE[tName];
+    if (!typeNum)
+      return res.status(400).json({ error: t(req.lang, 'resolve.unsupported_type', { type: tName }) });
+
+    const started = Date.now();
+    let result = null;
+    let error = null;
+    try {
+      result = await resolver.resolve(domain, typeNum);
+    } catch (e) {
+      error = e;
+    }
+    const latencyMs = Date.now() - started;
+
+    logs.record({
+      t: started,
+      client: 'web-ui',
+      domain,
+      type: tName,
+      source: result ? result.source : 'forward',
+      rcode: result ? result.rcode : Packet.RCODE.SERVFAIL,
+      latencyMs,
+      answers: result ? summarizeAnswers(result.answers) : '',
+      rule: (result && result.ruleLabel) || '',
+      upstream: (result && result.upstream) || '',
+      error: error ? error.message : '',
+    });
+
+    res.json({
+      domain,
+      type: tName,
+      source: result ? result.source : 'error',
+      rcode: result ? result.rcode : Packet.RCODE.SERVFAIL,
+      latencyMs,
+      rule: (result && result.ruleLabel) || '',
+      upstream: (result && result.upstream) || '',
+      answers: (result ? result.answers : []).map(a => ({
+        name: a.name,
+        type: typeName(a.type),
+        ttl: a.ttl,
+        value: a.address || a.domain || (a.data ? `${a.data.length} bytes` : typeName(a.type)),
+      })),
+      error: error ? error.message : null,
+    });
+  });
+
+  app.use('/api', (req, res) => res.status(404).json({ error: t(req.lang, 'api.not_found') }));
+
+  // JSON parse errors and other errors return 400/500 uniformly
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, req, res, next) => {
+    if (err && err.type === 'entity.parse.failed')
+      return res.status(400).json({ error: t(req.lang, 'api.invalid_json') });
+    console.error('[web] request error:', err && err.message);
+    res.status(500).json({ error: t(req.lang, 'api.internal_error') });
+  });
+
+  function listen(port) {
+    return new Promise((resolve, reject) => {
+      const server = app.listen(port, () => resolve(server));
+      server.on('error', reject);
+    });
+  }
+
+  return { listen };
+}
+
+module.exports = { createWebServer };

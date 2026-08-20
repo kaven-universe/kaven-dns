@@ -1,0 +1,17 @@
+{
+  "name": "kaven-dns",
+  "version": "1.0.0",
+  "description": "Node.js DNS server with a Web console: dynamic resolution rules (fixed IP / upstream forwarding), answer caching, and query monitoring",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=16.17"
+  },
+  "dependencies": {
+    "dns2": "^2.0.1",
+    "express": "^4.21.2"
+  }
+}

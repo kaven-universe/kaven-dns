@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kaven DNS Console</title>
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.38/dist/vue.global.prod.js"></script>
+<style>
+:root {
+  --bg: #f2f4f8; --card: #ffffff; --border: #e3e8ef;
+  --text: #1f2937; --muted: #6b7280;
+  --primary: #2563eb; --primary-dark: #1d4ed8;
+  --green: #16a34a; --orange: #d97706; --purple: #7c3aed; --red: #dc2626; --cyan: #0891b2;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+}
+button { font: inherit; cursor: pointer; border: none; border-radius: 6px; }
+input, select {
+  font: inherit; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 6px; background: #fff; color: var(--text); outline: none;
+}
+input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,.12); }
+.btn { padding: 7px 16px; background: var(--primary); color: #fff; }
+.btn:hover { background: var(--primary-dark); }
+.btn.secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
+.btn.secondary:hover { border-color: var(--primary); color: var(--primary); }
+.btn.danger { background: #fff; color: var(--red); border: 1px solid var(--border); }
+.btn.danger:hover { border-color: var(--red); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.sm { padding: 3px 10px; font-size: 12px; }
+
+/* Language switch */
+.lang-switch { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.lang-switch button {
+  background: #fff; color: var(--muted); padding: 3px 10px; font-size: 12px;
+}
+.lang-switch button + button { border-left: 1px solid var(--border); }
+.lang-switch button.on { background: var(--primary); color: #fff; }
+
+/* Login */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-card {
+  width: 360px; background: var(--card); border-radius: 12px; padding: 36px 32px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.08); text-align: center;
+}
+.login-card h1 { font-size: 20px; margin: 0 0 4px; }
+.login-card p { color: var(--muted); margin: 0 0 24px; font-size: 13px; }
+.login-card input { width: 100%; margin-bottom: 14px; }
+.login-card .btn { width: 100%; padding: 10px; }
+.login-card .lang-switch { margin-bottom: 18px; }
+.login-error { color: var(--red); font-size: 13px; min-height: 20px; margin-bottom: 8px; }
+
+/* Layout */
+header {
+  background: #fff; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 24px; height: 54px;
+  position: sticky; top: 0; z-index: 10;
+}
+.brand { font-weight: 700; font-size: 16px; margin-right: 28px; display: flex; align-items: center; gap: 8px; }
+.brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); }
+nav { display: flex; gap: 4px; flex: 1; }
+nav a {
+  padding: 6px 14px; border-radius: 6px; color: var(--muted); text-decoration: none;
+}
+nav a.active { background: rgba(37,99,235,.1); color: var(--primary); font-weight: 600; }
+main { max-width: 1200px; margin: 20px auto; padding: 0 24px 40px; }
+
+.card { background: var(--card); border-radius: 10px; border: 1px solid var(--border); padding: 18px 20px; margin-bottom: 16px; }
+.card h3 { margin: 0 0 14px; font-size: 15px; }
+
+/* Stat cards */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; }
+.stat .label { color: var(--muted); font-size: 12px; }
+.stat .value { font-size: 22px; font-weight: 700; margin-top: 2px; }
+.stat .sub { font-size: 12px; color: var(--muted); }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+tbody tr:hover { background: #f8fafc; }
+td.wrap { white-space: normal; word-break: break-all; max-width: 420px; }
+.tbl-scroll { overflow-x: auto; }
+
+.badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+.badge.fixed { background: rgba(22,163,74,.12); color: var(--green); }
+.badge.cache { background: rgba(124,58,237,.12); color: var(--purple); }
+.badge.forward { background: rgba(217,119,6,.12); color: var(--orange); }
+.badge.ok { background: rgba(8,145,178,.12); color: var(--cyan); }
+.badge.fail { background: rgba(220,38,38,.12); color: var(--red); }
+.badge.muted { background: #eef2f7; color: var(--muted); }
+
+/* Toolbar */
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.toolbar .grow { flex: 1; }
+
+/* Switch */
+.switch { position: relative; width: 36px; height: 20px; display: inline-block; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider {
+  position: absolute; inset: 0; border-radius: 20px; background: #cbd5e1; transition: .2s;
+}
+.switch .slider::before {
+  content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; top: 2px; left: 2px; transition: .2s;
+}
+.switch input:checked + .slider { background: var(--green); }
+.switch input:checked + .slider::before { transform: translateX(16px); }
+
+/* Modal */
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal { background: #fff; border-radius: 12px; width: 480px; max-width: calc(100vw - 32px); max-height: 90vh; overflow-y: auto; padding: 22px 24px; }
+.modal h3 { margin: 0 0 16px; }
+.form-row { margin-bottom: 13px; }
+.form-row label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+.form-row input, .form-row select { width: 100%; }
+.form-row .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.form-errors { background: rgba(220,38,38,.08); color: var(--red); border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+
+/* Settings */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.upstream-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.upstream-row input { flex: 1; }
+.empty { color: var(--muted); text-align: center; padding: 24px 0; }
+
+/* Resolve test */
+.test-result { background: #f8fafc; border-radius: 8px; padding: 12px 14px; margin-top: 10px; font-size: 13px; }
+
+/* Toast */
+.toast {
+  position: fixed; top: 68px; left: 50%; transform: translateX(-50%); z-index: 100;
+  padding: 9px 20px; border-radius: 8px; color: #fff; font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.15);
+}
+.toast.success { background: var(--green); }
+.toast.error { background: var(--red); }
+@media (max-width: 900px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } .settings-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div id="app" :lang="locale">
+
+  <!-- Login -->
+  <div v-if="!authed" class="login-wrap">
+    <div class="login-card">
+      <div class="lang-switch">
+        <button :class="{on: locale==='zh'}" @click="setLocale('zh')">中文</button>
+        <button :class="{on: locale==='en'}" @click="setLocale('en')">EN</button>
+      </div>
+      <h1>Kaven DNS</h1>
+      <p>{{ t('login.subtitle') }}</p>
+      <input type="password" v-model="loginPassword" :placeholder="t('login.passwordPlaceholder')"
+             @keyup.enter="login">
+      <div class="login-error">{{ loginError }}</div>
+      <button class="btn" :disabled="loginLoading" @click="login">
+        {{ loginLoading ? t('login.signingIn') : t('login.signIn') }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div v-else>
+    <header>
+      <div class="brand"><span class="dot"></span>Kaven DNS</div>
+      <nav>
+        <a href="#" :class="{active: tab==='dashboard'}" @click.prevent="switchTab('dashboard')">{{ t('nav.dashboard') }}</a>
+        <a href="#" :class="{active: tab==='rules'}" @click.prevent="switchTab('rules')">{{ t('nav.rules') }}</a>
+        <a href="#" :class="{active: tab==='settings'}" @click.prevent="switchTab('settings')">{{ t('nav.settings') }}</a>
+      </nav>
+      <div class="lang-switch" style="margin-right:14px">
+        <button :class="{on: locale==='zh'}" @click="setLocale('zh')">中文</button>
+        <button :class="{on: locale==='en'}" @click="setLocale('en')">EN</button>
+      </div>
+      <button class="btn secondary sm" @click="logout">{{ t('nav.signOut') }}</button>
+    </header>
+
+    <main>
+      <!-- Dashboard -->
+      <section v-show="tab==='dashboard'">
+        <div class="stat-grid">
+          <div class="stat"><div class="label">{{ t('stats.total') }}</div><div class="value">{{ stats.total ?? 0 }}</div><div class="sub">{{ t('stats.uptime') }} {{ fmtDuration(stats.uptimeMs) }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.fixed') }}</div><div class="value">{{ stats.fixed ?? 0 }}</div><div class="sub">{{ t('stats.fixedSub') }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.cache') }}</div><div class="value">{{ stats.cache ?? 0 }}</div><div class="sub">{{ t('stats.hitRate', {n: cacheInfo.hitRate ?? 0}) }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.forward') }}</div><div class="value">{{ stats.forward ?? 0 }}</div><div class="sub">{{ t('stats.avgMs', {n: stats.forwardAvgMs ?? 0}) }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.cacheEntries') }}</div><div class="value">{{ cacheInfo.size ?? 0 }}</div><div class="sub">{{ t('stats.limit', {n: cacheInfo.maxEntries ?? 0}) }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.avgLatency') }}</div><div class="value">{{ stats.avgLatencyMs ?? 0 }} ms</div><div class="sub">{{ t('stats.allQueries') }}</div></div>
+          <div class="stat"><div class="label">SERVFAIL</div><div class="value" :style="{color: (stats.servfail??0) > 0 ? 'var(--red)' : ''}">{{ stats.servfail ?? 0 }}</div><div class="sub">{{ t('stats.failedResolutions') }}</div></div>
+          <div class="stat"><div class="label">NXDOMAIN</div><div class="value">{{ stats.nxdomain ?? 0 }}</div><div class="sub">{{ t('stats.nonExistent') }}</div></div>
+        </div>
+
+        <div class="card">
+          <h3>{{ t('test.title') }}</h3>
+          <div class="toolbar">
+            <input v-model="testForm.domain" :placeholder="t('test.placeholder')" style="width: 300px" @keyup.enter="runTest">
+            <select v-model="testForm.type">
+              <option>A</option><option>AAAA</option><option>CNAME</option>
+            </select>
+            <button class="btn" :disabled="testLoading" @click="runTest">{{ testLoading ? t('test.testing') : t('test.button') }}</button>
+          </div>
+          <div v-if="testResult" class="test-result">
+            <template v-if="testResult.error">
+              <span class="badge fail">{{ t('test.failed') }}</span> {{ testResult.error }}
+            </template>
+            <template v-else>
+              <span class="badge" :class="testResult.source">{{ sourceText(testResult.source) }}</span>
+              <span v-if="testResult.rule" class="badge muted">{{ t('test.rule') }} {{ testResult.rule }}</span>
+              <span v-if="testResult.upstream" class="badge muted">{{ t('test.upstream') }} {{ testResult.upstream }}</span>
+              <span class="badge" :class="testResult.rcode === 0 ? 'ok' : 'fail'">rcode {{ testResult.rcode }}</span>
+              {{ testResult.latencyMs }} ms
+              <div style="margin-top:6px" v-if="testResult.answers.length">
+                <div v-for="(a, i) in testResult.answers" :key="i">{{ a.name }} → {{ a.value }} <span style="color:var(--muted)">({{ a.type }}, TTL {{ a.ttl }})</span></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="toolbar">
+            <h3 style="margin:0">{{ t('log.title') }}</h3>
+            <span class="grow"></span>
+            <input v-model="logFilter.domain" :placeholder="t('log.filterDomain')" style="width: 200px">
+            <select v-model="logFilter.source">
+              <option value="">{{ t('log.allSources') }}</option>
+              <option value="fixed">{{ t('source.fixed') }}</option>
+              <option value="cache">{{ t('source.cache') }}</option>
+              <option value="forward">{{ t('source.forward') }}</option>
+            </select>
+            <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px">
+              <span class="switch"><input type="checkbox" v-model="autoRefresh"><span class="slider"></span></span>
+              {{ t('log.autoRefresh') }}
+            </label>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr><th>{{ t('log.time') }}</th><th>{{ t('log.client') }}</th><th>{{ t('log.domain') }}</th><th>{{ t('log.type') }}</th><th>{{ t('log.source') }}</th><th>{{ t('log.ruleUpstream') }}</th><th>{{ t('log.result') }}</th><th>{{ t('log.status') }}</th><th>{{ t('log.latency') }}</th></tr>
+              </thead>
+              <tbody>
+                <tr v-if="!logs.length"><td colspan="9" class="empty">{{ t('log.empty') }}</td></tr>
+                <tr v-for="(l, i) in logs" :key="i">
+                  <td>{{ fmtTime(l.t) }}</td>
+                  <td>{{ l.client }}</td>
+                  <td class="wrap">{{ l.domain }}</td>
+                  <td>{{ l.type }}</td>
+                  <td><span class="badge" :class="l.source">{{ sourceText(l.source) }}</span></td>
+                  <td class="wrap">{{ l.rule || l.upstream || (l.error ? l.error : '-') }}</td>
+                  <td class="wrap">{{ l.answers || '-' }}</td>
+                  <td><span class="badge" :class="l.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(l.rcode) }}</span></td>
+                  <td>{{ l.latencyMs }} ms</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Rules -->
+      <section v-show="tab==='rules'">
+        <div class="card">
+          <div class="toolbar">
+            <h3 style="margin:0">{{ t('rules.title', {n: rules.length}) }}</h3>
+            <span class="grow"></span>
+            <button class="btn" @click="openAddRule">{{ t('rules.add') }}</button>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr><th>{{ t('rules.colDomain') }}</th><th>{{ t('rules.colType') }}</th><th>{{ t('rules.colMode') }}</th><th>{{ t('rules.colValue') }}</th><th>{{ t('rules.colTtl') }}</th><th>{{ t('rules.colEnabled') }}</th><th>{{ t('rules.colRemark') }}</th><th>{{ t('rules.colActions') }}</th></tr>
+              </thead>
+              <tbody>
+                <tr v-if="!rules.length"><td colspan="8" class="empty">{{ t('rules.empty') }}</td></tr>
+                <tr v-for="r in rules" :key="r.id">
+                  <td class="wrap" style="font-weight:600">{{ r.domain }}</td>
+                  <td>{{ r.type }}</td>
+                  <td><span class="badge" :class="r.mode === 'fixed' ? 'fixed' : 'forward'">{{ r.mode === 'fixed' ? t('rules.modeFixed') : t('rules.modeForward') }}</span></td>
+                  <td class="wrap">{{ r.mode === 'fixed' ? r.value : (r.upstream || t('rules.defaultUpstreams')) }}</td>
+                  <td>{{ r.ttl }}s</td>
+                  <td><label class="switch"><input type="checkbox" :checked="r.enabled" @change="toggleRule(r)"><span class="slider"></span></label></td>
+                  <td class="wrap">{{ r.remark || '-' }}</td>
+                  <td>
+                    <button class="btn secondary sm" @click="openEditRule(r)">{{ t('rules.edit') }}</button>
+                    <button class="btn danger sm" @click="deleteRule(r)">{{ t('rules.remove') }}</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section v-show="tab==='settings'">
+        <div class="settings-grid">
+          <div>
+            <div class="card">
+              <h3>{{ t('settings.upstreamsTitle') }}</h3>
+              <div v-for="(u, i) in settings.upstreams" :key="i" class="upstream-row">
+                <input v-model="settings.upstreams[i]" :placeholder="t('settings.upstreamPlaceholder')">
+                <button class="btn danger sm" @click="settings.upstreams.splice(i, 1)" :disabled="settings.upstreams.length <= 1">{{ t('settings.remove') }}</button>
+              </div>
+              <button class="btn secondary sm" @click="settings.upstreams.push('')">{{ t('settings.addUpstream') }}</button>
+            </div>
+            <div class="card">
+              <h3>{{ t('settings.cacheLogging') }}</h3>
+              <div class="form-row">
+                <label>{{ t('settings.forwardTimeout') }}</label>
+                <input type="number" v-model.number="settings.forwardTimeoutMs">
+              </div>
+              <div class="form-row">
+                <label>{{ t('settings.maxCache') }}</label>
+                <input type="number" v-model.number="settings.cacheMaxEntries">
+              </div>
+              <div class="form-row">
+                <label>{{ t('settings.ttlRange') }}</label>
+                <div style="display:flex;gap:8px">
+                  <input type="number" v-model.number="settings.ttlMin">
+                  <input type="number" v-model.number="settings.ttlMax">
+                </div>
+                <div class="hint">{{ t('settings.ttlHint') }}</div>
+              </div>
+              <div class="form-row">
+                <label>{{ t('settings.logCapacity') }}</label>
+                <input type="number" v-model.number="settings.logCapacity">
+              </div>
+              <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.saveSettings') }}</button>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <h3>{{ t('settings.portsTitle') }}<span style="font-weight:400;font-size:12px;color:var(--muted)">{{ t('settings.portsHint') }}</span></h3>
+              <div class="form-row">
+                <label>{{ t('settings.dnsPort') }}</label>
+                <input type="number" v-model.number="settings.dnsPort">
+                <div class="hint">{{ t('settings.dnsPortHint') }}</div>
+              </div>
+              <div class="form-row">
+                <label>{{ t('settings.webPort') }}</label>
+                <input type="number" v-model.number="settings.webPort">
+              </div>
+              <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.savePorts') }}</button>
+            </div>
+            <div class="card">
+              <h3>{{ t('settings.cacheMgmt') }}</h3>
+              <p style="margin:0 0 12px;color:var(--muted);font-size:13px">
+                {{ t('settings.cacheInfo', {entries: cacheInfo.size ?? 0, hits: cacheInfo.hits ?? 0, rate: cacheInfo.hitRate ?? 0}) }}
+              </p>
+              <button class="btn danger" @click="flushCache">{{ t('settings.flushCache') }}</button>
+            </div>
+            <div class="card">
+              <h3>{{ t('settings.changePassword') }}</h3>
+              <div class="form-row"><label>{{ t('settings.currentPassword') }}</label><input type="password" v-model="pwForm.current"></div>
+              <div class="form-row"><label>{{ t('settings.newPassword') }}</label><input type="password" v-model="pwForm.next"></div>
+              <div class="form-row"><label>{{ t('settings.confirmPassword') }}</label><input type="password" v-model="pwForm.confirm"></div>
+              <button class="btn" :disabled="savingPw" @click="changePassword">{{ savingPw ? t('settings.submitting') : t('settings.changePassword') }}</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Rule editor modal -->
+  <div v-if="ruleModal.visible" class="modal-mask" @click.self="ruleModal.visible = false">
+    <div class="modal">
+      <h3>{{ ruleModal.editing ? t('modal.editTitle') : t('modal.addTitle') }}</h3>
+      <div v-if="ruleModal.errors.length" class="form-errors">
+        <div v-for="(e, i) in ruleModal.errors" :key="i">{{ e }}</div>
+      </div>
+      <div class="form-row">
+        <label>{{ t('modal.domain') }}</label>
+        <input v-model="ruleModal.form.domain" :placeholder="t('modal.domainPlaceholder')">
+        <div class="hint">{{ t('modal.domainHint') }}</div>
+      </div>
+      <div class="form-row">
+        <label>{{ t('modal.recordType') }}</label>
+        <select v-model="ruleModal.form.type">
+          <option>A</option><option>AAAA</option><option>CNAME</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>{{ t('modal.mode') }}</label>
+        <select v-model="ruleModal.form.mode">
+          <option value="fixed">{{ t('modal.modeFixed') }}</option>
+          <option value="forward">{{ t('modal.modeForward') }}</option>
+        </select>
+      </div>
+      <div class="form-row" v-if="ruleModal.form.mode === 'fixed'">
+        <label>{{ t('modal.answerValue') }}</label>
+        <input v-model="ruleModal.form.value" :placeholder="valuePlaceholder">
+        <div class="hint">{{ t('modal.cnameHint') }}</div>
+      </div>
+      <div class="form-row" v-if="ruleModal.form.mode === 'forward'">
+        <label>{{ t('modal.upstream') }}</label>
+        <input v-model="ruleModal.form.upstream" :placeholder="t('modal.upstreamPlaceholder')">
+      </div>
+      <div class="form-row">
+        <label>{{ t('modal.ttl') }}</label>
+        <input type="number" v-model.number="ruleModal.form.ttl">
+      </div>
+      <div class="form-row">
+        <label>{{ t('modal.remark') }}</label>
+        <input v-model="ruleModal.form.remark" :placeholder="t('modal.remarkPlaceholder')">
+      </div>
+      <div class="form-row">
+        <label>{{ t('modal.enabled') }}</label>
+        <label class="switch"><input type="checkbox" v-model="ruleModal.form.enabled"><span class="slider"></span></label>
+      </div>
+      <div class="form-actions">
+        <button class="btn secondary" @click="ruleModal.visible = false">{{ t('modal.cancel') }}</button>
+        <button class="btn" :disabled="ruleModal.saving" @click="saveRule">{{ ruleModal.saving ? t('modal.saving') : t('modal.save') }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div v-if="toast.show" class="toast" :class="toast.type">{{ toast.text }}</div>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+const I18N = {
+  en: {
+    'title': 'Kaven DNS Console',
+    'login.subtitle': 'DNS Server Management Console',
+    'login.passwordPlaceholder': 'Enter admin password',
+    'login.signIn': 'Sign In',
+    'login.signingIn': 'Signing in...',
+    'login.sessionExpired': 'Session expired, please sign in again',
+    'nav.dashboard': 'Dashboard',
+    'nav.rules': 'Rules',
+    'nav.settings': 'Settings',
+    'nav.signOut': 'Sign Out',
+    'stats.total': 'Total Queries',
+    'stats.uptime': 'Uptime',
+    'stats.fixed': 'Rule Hits',
+    'stats.fixedSub': 'Fixed answers',
+    'stats.cache': 'Cache Hits',
+    'stats.hitRate': '{n}% hit rate',
+    'stats.forward': 'Upstream Forwards',
+    'stats.avgMs': 'Avg {n} ms',
+    'stats.cacheEntries': 'Cache Entries',
+    'stats.limit': 'Limit {n}',
+    'stats.avgLatency': 'Avg Latency',
+    'stats.allQueries': 'All queries',
+    'stats.failedResolutions': 'Failed resolutions',
+    'stats.nonExistent': 'Non-existent domains',
+    'test.title': 'Resolve Test',
+    'test.placeholder': 'Enter a domain, e.g. example.com',
+    'test.button': 'Test',
+    'test.testing': 'Testing...',
+    'test.failed': 'Failed',
+    'test.rule': 'Rule',
+    'test.upstream': 'Upstream',
+    'log.title': 'Query Log',
+    'log.filterDomain': 'Filter by domain',
+    'log.allSources': 'All sources',
+    'log.autoRefresh': 'Auto refresh',
+    'log.empty': 'No queries yet',
+    'log.time': 'Time',
+    'log.client': 'Client',
+    'log.domain': 'Domain',
+    'log.type': 'Type',
+    'log.source': 'Source',
+    'log.ruleUpstream': 'Rule / Upstream',
+    'log.result': 'Result',
+    'log.status': 'Status',
+    'log.latency': 'Latency',
+    'source.fixed': 'Rule',
+    'source.cache': 'Cache',
+    'source.forward': 'Forward',
+    'rcode.ok': 'OK',
+    'rcode.servfail': 'SERVFAIL',
+    'rcode.nxdomain': 'NXDOMAIN',
+    'rules.title': 'Rules ({n})',
+    'rules.add': '+ Add Rule',
+    'rules.empty': 'No rules yet. Click "Add Rule" to create one; queries that match no rule are forwarded to the default upstreams',
+    'rules.colDomain': 'Domain',
+    'rules.colType': 'Type',
+    'rules.colMode': 'Mode',
+    'rules.colValue': 'Value / Upstream',
+    'rules.colTtl': 'TTL',
+    'rules.colEnabled': 'Enabled',
+    'rules.colRemark': 'Remark',
+    'rules.colActions': 'Actions',
+    'rules.modeFixed': 'Fixed',
+    'rules.modeForward': 'Forward',
+    'rules.defaultUpstreams': 'Default upstreams',
+    'rules.edit': 'Edit',
+    'rules.remove': 'Remove',
+    'rules.removeConfirm': 'Remove rule {domain}?',
+    'modal.addTitle': 'Add Rule',
+    'modal.editTitle': 'Edit Rule',
+    'modal.domain': 'Domain',
+    'modal.domainPlaceholder': 'example.com or *.example.com',
+    'modal.domainHint': 'example.com matches itself and all subdomains; *.example.com matches subdomains only; longer suffixes win',
+    'modal.recordType': 'Record Type',
+    'modal.mode': 'Mode',
+    'modal.modeFixed': 'Fixed answer (return the specified IP / domain directly)',
+    'modal.modeForward': 'Forward (fetch from a third-party DNS, with caching)',
+    'modal.answerValue': 'Answer Value',
+    'modal.valuePlaceholderA': 'IPv4 address, comma-separated for multiple, e.g. 192.168.1.10',
+    'modal.valuePlaceholderAAAA': 'IPv6 address, e.g. fd00::1',
+    'modal.valuePlaceholderCname': 'Target domain, e.g. host.example.com',
+    'modal.cnameHint': 'For A/AAAA queries a CNAME rule also includes the target\'s resolved records',
+    'modal.upstream': 'Upstream DNS (optional)',
+    'modal.upstreamPlaceholder': 'Leave empty to use the default upstreams, e.g. 8.8.8.8',
+    'modal.ttl': 'TTL (seconds)',
+    'modal.remark': 'Remark',
+    'modal.remarkPlaceholder': 'Optional',
+    'modal.enabled': 'Enabled',
+    'modal.cancel': 'Cancel',
+    'modal.save': 'Save',
+    'modal.saving': 'Saving...',
+    'settings.upstreamsTitle': 'Upstream DNS servers (raced in parallel, fastest wins)',
+    'settings.upstreamPlaceholder': 'e.g. 223.5.5.5 or 8.8.8.8:53',
+    'settings.remove': 'Remove',
+    'settings.addUpstream': '+ Add upstream',
+    'settings.cacheLogging': 'Cache & Logging',
+    'settings.forwardTimeout': 'Forward timeout (ms, 500-30000)',
+    'settings.maxCache': 'Max cache entries (LRU eviction)',
+    'settings.ttlRange': 'Cache TTL min / max (seconds)',
+    'settings.ttlHint': 'Actual cache time = the answer\'s minimum TTL, clamped to this range',
+    'settings.logCapacity': 'Query log capacity',
+    'settings.saveSettings': 'Save Settings',
+    'settings.saving': 'Saving...',
+    'settings.portsTitle': 'Service Ports',
+    'settings.portsHint': ' (restart required to apply)',
+    'settings.dnsPort': 'DNS port (UDP + TCP)',
+    'settings.dnsPortHint': 'Port 53 requires administrator privileges on Windows; use e.g. 5330 for testing',
+    'settings.webPort': 'Web console port',
+    'settings.savePorts': 'Save Ports',
+    'settings.cacheMgmt': 'Cache Management',
+    'settings.cacheInfo': '{entries} entries · {hits} hits · {rate}% hit rate',
+    'settings.flushCache': 'Flush Cache',
+    'settings.changePassword': 'Change Password',
+    'settings.currentPassword': 'Current password',
+    'settings.newPassword': 'New password (min 6 characters)',
+    'settings.confirmPassword': 'Confirm new password',
+    'settings.submitting': 'Submitting...',
+    'toast.ruleSaved': 'Rule saved, effective immediately',
+    'toast.removed': 'Removed',
+    'toast.savedRestart': 'Saved; restart the process to apply port changes',
+    'toast.saved': 'Saved',
+    'toast.passwordChanged': 'Password changed',
+    'toast.fillAll': 'Please fill in all fields',
+    'toast.passwordMismatch': 'New passwords do not match',
+    'toast.flushConfirm': 'Flush all DNS cache entries?',
+    'toast.flushed': 'Flushed {n} cache entries',
+    'api.requestFailed': 'Request failed ({status})',
+    'api.signInFailed': 'Sign-in failed',
+    'dur.d': 'd', 'dur.h': 'h', 'dur.m': 'm', 'dur.s': 's',
+  },
+  zh: {
+    'title': 'Kaven DNS 控制台',
+    'login.subtitle': 'DNS 服务器管理控制台',
+    'login.passwordPlaceholder': '请输入管理密码',
+    'login.signIn': '登 录',
+    'login.signingIn': '登录中...',
+    'login.sessionExpired': '会话已过期，请重新登录',
+    'nav.dashboard': '仪表盘',
+    'nav.rules': '解析规则',
+    'nav.settings': '设置',
+    'nav.signOut': '退出登录',
+    'stats.total': '总查询数',
+    'stats.uptime': '运行',
+    'stats.fixed': '规则命中',
+    'stats.fixedSub': '固定应答',
+    'stats.cache': '缓存命中',
+    'stats.hitRate': '命中率 {n}%',
+    'stats.forward': '上游转发',
+    'stats.avgMs': '平均 {n} ms',
+    'stats.cacheEntries': '缓存条目',
+    'stats.limit': '上限 {n}',
+    'stats.avgLatency': '平均耗时',
+    'stats.allQueries': '全部查询',
+    'stats.failedResolutions': '解析失败',
+    'stats.nonExistent': '域名不存在',
+    'test.title': '解析测试',
+    'test.placeholder': '输入域名，如 example.com',
+    'test.button': '测试',
+    'test.testing': '查询中...',
+    'test.failed': '失败',
+    'test.rule': '规则',
+    'test.upstream': '上游',
+    'log.title': '查询日志',
+    'log.filterDomain': '按域名过滤',
+    'log.allSources': '全部来源',
+    'log.autoRefresh': '自动刷新',
+    'log.empty': '暂无查询记录',
+    'log.time': '时间',
+    'log.client': '客户端',
+    'log.domain': '域名',
+    'log.type': '类型',
+    'log.source': '来源',
+    'log.ruleUpstream': '规则 / 上游',
+    'log.result': '结果',
+    'log.status': '状态',
+    'log.latency': '耗时',
+    'source.fixed': '规则',
+    'source.cache': '缓存',
+    'source.forward': '转发',
+    'rcode.ok': '成功',
+    'rcode.servfail': 'SERVFAIL',
+    'rcode.nxdomain': 'NXDOMAIN',
+    'rules.title': '解析规则（{n} 条）',
+    'rules.add': '+ 新增规则',
+    'rules.empty': '还没有规则，点击「新增规则」创建；未命中规则的查询将转发到默认上游',
+    'rules.colDomain': '域名',
+    'rules.colType': '类型',
+    'rules.colMode': '模式',
+    'rules.colValue': '值 / 上游',
+    'rules.colTtl': 'TTL',
+    'rules.colEnabled': '启用',
+    'rules.colRemark': '备注',
+    'rules.colActions': '操作',
+    'rules.modeFixed': '固定应答',
+    'rules.modeForward': '转发',
+    'rules.defaultUpstreams': '默认上游',
+    'rules.edit': '编辑',
+    'rules.remove': '删除',
+    'rules.removeConfirm': '确定删除规则 {domain} 吗？',
+    'modal.addTitle': '新增规则',
+    'modal.editTitle': '编辑规则',
+    'modal.domain': '域名',
+    'modal.domainPlaceholder': 'example.com 或 *.example.com',
+    'modal.domainHint': 'example.com 匹配自身及所有子域名；*.example.com 仅匹配子域名；更长后缀优先',
+    'modal.recordType': '记录类型',
+    'modal.mode': '解析模式',
+    'modal.modeFixed': '固定应答（直接返回指定 IP / 域名）',
+    'modal.modeForward': '转发（从第三方 DNS 获取，带缓存）',
+    'modal.answerValue': '应答值',
+    'modal.valuePlaceholderA': 'IPv4 地址，多个用逗号分隔，如 192.168.1.10',
+    'modal.valuePlaceholderAAAA': 'IPv6 地址，如 fd00::1',
+    'modal.valuePlaceholderCname': '目标域名，如 host.example.com',
+    'modal.cnameHint': 'CNAME 规则在 A/AAAA 查询下会附带解析目标域名的结果',
+    'modal.upstream': '上游 DNS（可选）',
+    'modal.upstreamPlaceholder': '留空使用默认上游组，如 8.8.8.8',
+    'modal.ttl': 'TTL（秒）',
+    'modal.remark': '备注',
+    'modal.remarkPlaceholder': '可选',
+    'modal.enabled': '启用',
+    'modal.cancel': '取消',
+    'modal.save': '保存',
+    'modal.saving': '保存中...',
+    'settings.upstreamsTitle': '上游 DNS（并发竞速，取最快）',
+    'settings.upstreamPlaceholder': '如 223.5.5.5 或 8.8.8.8:53',
+    'settings.remove': '删除',
+    'settings.addUpstream': '+ 添加上游',
+    'settings.cacheLogging': '缓存与日志',
+    'settings.forwardTimeout': '单次转发超时（毫秒，500-30000）',
+    'settings.maxCache': '缓存最大条目数（LRU 淘汰）',
+    'settings.ttlRange': '缓存 TTL 下限 / 上限（秒）',
+    'settings.ttlHint': '实际缓存时长 = 应答最小 TTL，并夹在该区间内',
+    'settings.logCapacity': '查询日志保留条数',
+    'settings.saveSettings': '保存设置',
+    'settings.saving': '保存中...',
+    'settings.portsTitle': '服务端口',
+    'settings.portsHint': '（修改后需重启进程生效）',
+    'settings.dnsPort': 'DNS 端口（UDP + TCP）',
+    'settings.dnsPortHint': 'Windows 下监听 53 需要管理员权限；调试可先用 5330 等端口',
+    'settings.webPort': 'Web 管理端口',
+    'settings.savePorts': '保存端口',
+    'settings.cacheMgmt': '缓存管理',
+    'settings.cacheInfo': '{entries} 条 · 命中 {hits} 次 · 命中率 {rate}%',
+    'settings.flushCache': '清空缓存',
+    'settings.changePassword': '修改密码',
+    'settings.currentPassword': '当前密码',
+    'settings.newPassword': '新密码（至少 6 位）',
+    'settings.confirmPassword': '确认新密码',
+    'settings.submitting': '提交中...',
+    'toast.ruleSaved': '规则已保存，即时生效',
+    'toast.removed': '已删除',
+    'toast.savedRestart': '已保存，端口变更需重启进程后生效',
+    'toast.saved': '已保存',
+    'toast.passwordChanged': '密码已修改',
+    'toast.fillAll': '请填写完整',
+    'toast.passwordMismatch': '两次输入的新密码不一致',
+    'toast.flushConfirm': '确定清空全部 DNS 缓存吗？',
+    'toast.flushed': '已清空 {n} 条缓存',
+    'api.requestFailed': '请求失败 ({status})',
+    'api.signInFailed': '登录失败',
+    'dur.d': '天', 'dur.h': '时', 'dur.m': '分', 'dur.s': '秒',
+  },
+};
+
+createApp({
+  data() {
+    const saved = localStorage.getItem('kaven_dns_lang');
+    const locale = saved === 'zh' || saved === 'en'
+      ? saved
+      : (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    return {
+      locale,
+      authed: false,
+      token: localStorage.getItem('kaven_dns_token') || '',
+      loginPassword: '', loginError: '', loginLoading: false,
+      tab: 'dashboard',
+      stats: {}, cacheInfo: {},
+      logs: [],
+      logFilter: { domain: '', source: '' },
+      autoRefresh: true,
+      rules: [],
+      ruleModal: { visible: false, editing: false, saving: false, errors: [], form: {} },
+      settings: {
+        upstreams: [], forwardTimeoutMs: 3000, cacheMaxEntries: 10000,
+        ttlMin: 10, ttlMax: 3600, logCapacity: 1000, dnsPort: 53, webPort: 8080,
+      },
+      savingSettings: false, savingPw: false,
+      pwForm: { current: '', next: '', confirm: '' },
+      testForm: { domain: '', type: 'A' },
+      testResult: null, testLoading: false,
+      toast: { show: false, text: '', type: 'success' },
+    };
+  },
+  computed: {
+    valuePlaceholder() {
+      const t = this.ruleModal.form.type;
+      if (t === 'A') return this.t('modal.valuePlaceholderA');
+      if (t === 'AAAA') return this.t('modal.valuePlaceholderAAAA');
+      return this.t('modal.valuePlaceholderCname');
+    },
+  },
+  async mounted() {
+    this.applyLocaleMeta();
+    if (this.token) {
+      try {
+        await this.api('/api/auth/check');
+        this.enterApp();
+      } catch (_) {
+        this.token = '';
+        localStorage.removeItem('kaven_dns_token');
+      }
+    }
+    setInterval(() => {
+      if (this.authed && this.tab === 'dashboard' && this.autoRefresh && !document.hidden) {
+        this.refreshStats();
+        this.refreshLogs();
+      }
+    }, 2000);
+  },
+  methods: {
+    t(key, args) {
+      let s = (I18N[this.locale] && I18N[this.locale][key]) ?? I18N.en[key] ?? key;
+      if (args) {
+        for (const [k, v] of Object.entries(args)) {
+          s = s.split(`{${k}}`).join(String(v));
+        }
+      }
+      return s;
+    },
+    setLocale(locale) {
+      this.locale = locale;
+      localStorage.setItem('kaven_dns_lang', locale);
+      this.applyLocaleMeta();
+    },
+    applyLocaleMeta() {
+      document.documentElement.lang = this.locale === 'zh' ? 'zh-CN' : 'en';
+      document.title = this.t('title');
+    },
+    async api(path, options = {}) {
+      const headers = Object.assign({}, options.headers || {}, {
+        'Accept-Language': this.locale,
+      });
+      if (this.token) headers.Authorization = 'Bearer ' + this.token;
+      const opts = { ...options, headers };
+      if (opts.body && typeof opts.body !== 'string') {
+        opts.body = JSON.stringify(opts.body);
+        headers['Content-Type'] = 'application/json';
+      }
+      const res = await fetch(path, opts);
+      let data = {};
+      try { data = await res.json(); } catch (_) { /* empty response */ }
+      if (res.status === 401 && path !== '/api/auth/login') {
+        this.authed = false;
+        this.token = '';
+        localStorage.removeItem('kaven_dns_token');
+        this.loginError = this.t('login.sessionExpired');
+        throw new Error(data.error || this.t('login.sessionExpired'));
+      }
+      if (!res.ok) throw new Error(data.error || this.t('api.requestFailed', { status: res.status }));
+      return data;
+    },
+    async login() {
+      this.loginLoading = true;
+      this.loginError = '';
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept-Language': this.locale },
+          body: JSON.stringify({ password: this.loginPassword }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || this.t('api.signInFailed'));
+        this.token = data.token;
+        localStorage.setItem('kaven_dns_token', this.token);
+        this.loginPassword = '';
+        this.enterApp();
+      } catch (e) {
+        this.loginError = e.message;
+      } finally {
+        this.loginLoading = false;
+      }
+    },
+    async logout() {
+      try { await this.api('/api/auth/logout', { method: 'POST' }); } catch (_) { /* ignore */ }
+      this.authed = false;
+      this.token = '';
+      localStorage.removeItem('kaven_dns_token');
+    },
+    async enterApp() {
+      this.authed = true;
+      await Promise.allSettled([this.refreshStats(), this.refreshLogs(), this.loadRules(), this.loadConfig()]);
+    },
+    switchTab(tab) {
+      this.tab = tab;
+      if (tab === 'settings') this.loadConfig();
+    },
+    async refreshStats() {
+      try {
+        const data = await this.api('/api/stats');
+        this.stats = data.stats;
+        this.cacheInfo = data.cache;
+      } catch (_) { /* silent polling failure */ }
+    },
+    async refreshLogs() {
+      try {
+        const params = new URLSearchParams();
+        if (this.logFilter.domain) params.set('domain', this.logFilter.domain);
+        if (this.logFilter.source) params.set('source', this.logFilter.source);
+        const data = await this.api('/api/logs?' + params.toString());
+        this.logs = data.logs;
+      } catch (_) { /* silent polling failure */ }
+    },
+    async loadRules() {
+      const data = await this.api('/api/rules');
+      this.rules = data.rules;
+    },
+    emptyRuleForm() {
+      return {
+        domain: '', type: 'A', mode: 'fixed', value: '',
+        upstream: '', ttl: 60, enabled: true, remark: '',
+      };
+    },
+    openAddRule() {
+      this.ruleModal = {
+        visible: true, editing: false, saving: false, errors: [],
+        form: this.emptyRuleForm(),
+      };
+    },
+    openEditRule(r) {
+      this.ruleModal = {
+        visible: true, editing: true, saving: false, errors: [],
+        form: { ...r },
+      };
+    },
+    async saveRule() {
+      const m = this.ruleModal;
+      m.saving = true;
+      m.errors = [];
+      try {
+        if (m.editing) await this.api('/api/rules/' + m.form.id, { method: 'PUT', body: m.form });
+        else await this.api('/api/rules', { method: 'POST', body: m.form });
+        m.visible = false;
+        this.showToast(this.t('toast.ruleSaved'));
+        await this.loadRules();
+      } catch (e) {
+        m.errors = e.message.split('; ');
+      } finally {
+        m.saving = false;
+      }
+    },
+    async toggleRule(r) {
+      try {
+        await this.api('/api/rules/' + r.id, { method: 'PUT', body: { enabled: !r.enabled } });
+        r.enabled = !r.enabled;
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+    async deleteRule(r) {
+      if (!confirm(this.t('rules.removeConfirm', { domain: r.domain }))) return;
+      try {
+        await this.api('/api/rules/' + r.id, { method: 'DELETE' });
+        this.showToast(this.t('toast.removed'));
+        await this.loadRules();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+    async loadConfig() {
+      try {
+        const data = await this.api('/api/config');
+        const c = data.config;
+        this.settings = {
+          upstreams: [...c.upstreams],
+          forwardTimeoutMs: c.forwardTimeoutMs,
+          cacheMaxEntries: c.cacheMaxEntries,
+          ttlMin: c.ttlMin, ttlMax: c.ttlMax,
+          logCapacity: c.logCapacity,
+          dnsPort: c.dnsPort, webPort: c.webPort,
+        };
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+    async saveSettings() {
+      this.savingSettings = true;
+      try {
+        const body = {
+          upstreams: this.settings.upstreams.map(s => s.trim()).filter(Boolean),
+          forwardTimeoutMs: this.settings.forwardTimeoutMs,
+          cacheMaxEntries: this.settings.cacheMaxEntries,
+          ttlMin: this.settings.ttlMin, ttlMax: this.settings.ttlMax,
+          logCapacity: this.settings.logCapacity,
+          dnsPort: this.settings.dnsPort, webPort: this.settings.webPort,
+        };
+        const data = await this.api('/api/config', { method: 'PUT', body });
+        this.showToast(data.restartRequired ? this.t('toast.savedRestart') : this.t('toast.saved'));
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.savingSettings = false;
+      }
+    },
+    async changePassword() {
+      if (!this.pwForm.current || !this.pwForm.next) return this.showToast(this.t('toast.fillAll'), 'error');
+      if (this.pwForm.next !== this.pwForm.confirm) return this.showToast(this.t('toast.passwordMismatch'), 'error');
+      this.savingPw = true;
+      try {
+        await this.api('/api/config', {
+          method: 'PUT',
+          body: { currentPassword: this.pwForm.current, newPassword: this.pwForm.next },
+        });
+        this.pwForm = { current: '', next: '', confirm: '' };
+        this.showToast(this.t('toast.passwordChanged'));
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.savingPw = false;
+      }
+    },
+    async flushCache() {
+      if (!confirm(this.t('toast.flushConfirm'))) return;
+      try {
+        const data = await this.api('/api/cache/flush', { method: 'POST' });
+        this.showToast(this.t('toast.flushed', { n: data.flushed }));
+        this.refreshStats();
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+    async runTest() {
+      if (!this.testForm.domain.trim()) return;
+      this.testLoading = true;
+      this.testResult = null;
+      try {
+        this.testResult = await this.api('/api/resolve', {
+          method: 'POST',
+          body: { domain: this.testForm.domain.trim(), type: this.testForm.type },
+        });
+      } catch (e) {
+        this.testResult = { error: e.message };
+      } finally {
+        this.testLoading = false;
+      }
+    },
+    sourceText(s) {
+      return { fixed: this.t('source.fixed'), cache: this.t('source.cache'), forward: this.t('source.forward') }[s] || s;
+    },
+    rcodeText(rcode) {
+      const map = { 0: this.t('rcode.ok'), 2: this.t('rcode.servfail'), 3: this.t('rcode.nxdomain') };
+      return map[rcode] || 'rcode ' + rcode;
+    },
+    fmtTime(t) {
+      return new Date(t).toLocaleTimeString([], { hour12: false });
+    },
+    fmtDuration(ms) {
+      if (ms == null) return '-';
+      const sep = this.locale === 'zh' ? '' : ' ';
+      const s = Math.floor(ms / 1000);
+      const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+      if (d) return `${d}${this.t('dur.d')}${sep}${h}${this.t('dur.h')}`;
+      if (h) return `${h}${this.t('dur.h')}${sep}${m}${this.t('dur.m')}`;
+      if (m) return `${m}${this.t('dur.m')}${sep}${s % 60}${this.t('dur.s')}`;
+      return `${s}${this.t('dur.s')}`;
+    },
+    showToast(text, type = 'success') {
+      this.toast = { show: true, text, type };
+      clearTimeout(this._toastTimer);
+      this._toastTimer = setTimeout(() => { this.toast.show = false; }, 2500);
+    },
+  },
+}).mount('#app');
+</script>
+</body>
+</html>
