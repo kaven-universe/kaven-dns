@@ -14,7 +14,7 @@ const { createSystemMonitor } = require('../system');
 
 const UPSTREAM_RE = /^\d+\.\d+\.\d+\.\d+(:\d{1,5})?$/;
 
-function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
+function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getDnsStatus, restartDns, runtime }) {
   const app = express();
   const systemMonitor = createSystemMonitor();
   app.disable('x-powered-by');
@@ -146,7 +146,12 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
   });
 
   app.get('/api/stats', (req, res) => {
-    res.json({ stats: logs.getStats(), cache: cache.info(), system: systemMonitor.snapshot() });
+    res.json({
+      stats: logs.getStats(),
+      cache: cache.info(),
+      system: systemMonitor.snapshot(),
+      dns: getDnsStatus ? getDnsStatus() : null,
+    });
   });
 
   // Cache management
@@ -161,7 +166,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
     res.json({ config: { ...rest, hasPassword: Boolean(passwordHash) } });
   });
 
-  app.put('/api/config', (req, res) => {
+  app.put('/api/config', async (req, res) => {
     const body = req.body || {};
     const lang = req.lang;
     const tr = (key, args) => t(lang, key, args);
@@ -194,15 +199,20 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
       else nums.sessionTtlHours = n;
     }
 
-    let portChanged = false;
     for (const key of ['dnsPort', 'webPort']) {
       if (body[key] !== undefined) {
         const n = Number(body[key]);
         if (!Number.isInteger(n) || n < 1 || n > 65535)
           errors.push(tr('config.port_range', { key }));
-        else if (n !== config[key]) portChanged = true;
         nums[key] = n;
       }
+    }
+
+    let bindAddress;
+    if (body.bindAddress !== undefined) {
+      bindAddress = String(body.bindAddress).trim() || '0.0.0.0';
+      if (!net.isIP(bindAddress))
+        errors.push(tr('config.bind_invalid', { value: bindAddress }));
     }
 
     let passwordChanged = false;
@@ -214,7 +224,24 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
       else passwordChanged = true;
     }
 
+    // Port changes are applied live: DNS re-listens immediately; the console
+    // moves only after the response is out, so the connection is not cut
+    // mid-reply. A busy web port is rejected up front without touching config.
+    const dnsPortChanged = nums.dnsPort !== undefined && nums.dnsPort !== config.dnsPort;
+    const bindChanged = bindAddress !== undefined && bindAddress !== config.bindAddress;
+    const webPortChanged = nums.webPort !== undefined && nums.webPort !== config.webPort;
+
     if (errors.length) return res.status(400).json({ error: errors.join('; ') });
+
+    if (webPortChanged && (!runtime || !runtime.probeWeb))
+      return res.status(500).json({ error: t(req.lang, 'api.internal_error') });
+    if (webPortChanged) {
+      try {
+        await runtime.probeWeb(nums.webPort);
+      } catch (_) {
+        return res.status(400).json({ error: tr('config.web_port_busy', { port: nums.webPort }) });
+      }
+    }
 
     if (body._upstreams) config.upstreams = body._upstreams;
     if (nums.forwardTimeoutMs !== undefined) config.forwardTimeoutMs = nums.forwardTimeoutMs;
@@ -230,12 +257,33 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
     }
     if (nums.sessionTtlHours !== undefined) config.sessionTtlHours = nums.sessionTtlHours;
     if (nums.dnsPort !== undefined) config.dnsPort = nums.dnsPort;
+    if (bindAddress !== undefined) config.bindAddress = bindAddress;
     if (nums.webPort !== undefined) config.webPort = nums.webPort;
     if (passwordChanged) config.passwordHash = hashPassword(String(body.newPassword));
 
     sanitize(config);
     saveConfig(config);
-    res.json({ ok: true, restartRequired: portChanged, passwordChanged });
+
+    // sanitize() clamps out-of-range numbers to valid bounds; tell the client
+    // which requested values were silently adjusted so the UI can flag them.
+    const adjusted = {};
+    for (const key of ['forwardTimeoutMs', 'cacheMaxEntries', 'ttlMin', 'ttlMax', 'logCapacity']) {
+      if (nums[key] !== undefined && nums[key] !== config[key]) adjusted[key] = config[key];
+    }
+
+    const response = { ok: true, passwordChanged, adjusted };
+    if ((dnsPortChanged || bindChanged) && restartDns)
+      response.dns = await restartDns(config.dnsPort, config.bindAddress);
+    if (webPortChanged) response.newWebPort = nums.webPort;
+    res.json(response);
+
+    // Move the console after the response has flushed to the client.
+    if (webPortChanged) {
+      res.once('finish', () => {
+        runtime.moveWeb(nums.webPort).catch(e =>
+          console.error('[web] failed to move console to port', nums.webPort, '-', e.message));
+      });
+    }
   });
 
   // Resolve test: goes through the full pipeline (rules/cache included) for
@@ -308,7 +356,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth }) {
     });
   }
 
-  return { listen };
+  return { listen, runtime };
 }
 
 module.exports = { createWebServer };

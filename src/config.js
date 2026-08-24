@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const net = require('net');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
@@ -10,6 +11,8 @@ const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const DEFAULTS = {
   dnsPort: 53,
   webPort: 8080,
+  // Local address the DNS servers bind to; 0.0.0.0 = every interface
+  bindAddress: '0.0.0.0',
   // Default upstream DNS servers (UDP); queries are raced, fastest response wins
   upstreams: ['223.5.5.5', '119.29.29.29', '114.114.114.114'],
   // Timeout for a single upstream forward (ms)
@@ -72,6 +75,8 @@ function sanitize(config) {
   if (!config.upstreams.length) config.upstreams = [...DEFAULTS.upstreams];
   config.dnsPort = clampInt(config.dnsPort, 1, 65535, DEFAULTS.dnsPort);
   config.webPort = clampInt(config.webPort, 1, 65535, DEFAULTS.webPort);
+  const addr = String(config.bindAddress || '').trim();
+  config.bindAddress = net.isIP(addr) ? addr : DEFAULTS.bindAddress;
   config.forwardTimeoutMs = clampInt(config.forwardTimeoutMs, 500, 30000, DEFAULTS.forwardTimeoutMs);
   config.cacheMaxEntries = clampInt(config.cacheMaxEntries, 100, 1000000, DEFAULTS.cacheMaxEntries);
   config.ttlMin = clampInt(config.ttlMin, 1, 3600, DEFAULTS.ttlMin);
@@ -109,8 +114,16 @@ function loadConfig() {
     console.log('  Keep it safe; you can change it later on the Settings page.');
     console.log('==============================================================');
   }
-  if (process.env.KAVEN_DNS_PORT) config.dnsPort = Number(process.env.KAVEN_DNS_PORT);
-  if (process.env.KAVEN_WEB_PORT) config.webPort = Number(process.env.KAVEN_WEB_PORT);
+  if (process.env.KAVEN_DNS_PORT) {
+    if (config.dnsPort !== Number(process.env.KAVEN_DNS_PORT))
+      console.log(`[config] KAVEN_DNS_PORT=${process.env.KAVEN_DNS_PORT} overrides dnsPort from config (${config.dnsPort})`);
+    config.dnsPort = Number(process.env.KAVEN_DNS_PORT);
+  }
+  if (process.env.KAVEN_WEB_PORT) {
+    if (config.webPort !== Number(process.env.KAVEN_WEB_PORT))
+      console.log(`[config] KAVEN_WEB_PORT=${process.env.KAVEN_WEB_PORT} overrides webPort from config (${config.webPort})`);
+    config.webPort = Number(process.env.KAVEN_WEB_PORT);
+  }
   sanitize(config);
   atomicWriteJson(CONFIG_FILE, config);
   return { config, firstRun };

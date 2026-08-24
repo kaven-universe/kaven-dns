@@ -10,7 +10,7 @@ const { typeName, summarizeAnswers } = require('./util');
  * clientInfo is rinfo (address/port) for UDP and a net.Socket
  * (remoteAddress) for TCP.
  */
-function createDnsServers({ resolver, logs, port }) {
+function createDnsServers({ resolver, logs, port, address }) {
   async function handle(request, send, client) {
     const started = Date.now();
     const clientIp =
@@ -64,23 +64,74 @@ function createDnsServers({ resolver, logs, port }) {
     });
   }
 
-  const udp = new UDPServer(handle);
-  const tcp = new TCPServer(handle);
-  const onErr = e => console.error('[dns] request error:', e.message);
-  udp.on('requestError', onErr);
-  tcp.on('requestError', onErr);
+  // dns2's UDP socket (dgram.Socket) cannot re-bind after close(), and the
+  // TCP server's connection bookkeeping is per-instance — so switching ports
+  // means building fresh server objects rather than re-listening the old ones.
+  let udp = null;
+  let tcp = null;
+
+  function createServers() {
+    const onErr = e => console.error('[dns] request error:', e.message);
+    const newUdp = new UDPServer(handle);
+    const newTcp = new TCPServer(handle);
+    newUdp.on('requestError', onErr);
+    newTcp.on('requestError', onErr);
+    return { newUdp, newTcp };
+  }
+
+  const state = { port, address, listening: false, error: '' };
 
   async function start() {
-    await udp.listen(port);
-    await tcp.listen(port);
+    if (!udp) ({ newUdp: udp, newTcp: tcp } = createServers());
+    try {
+      // dns2's UDP listen() resolves a promise, but TCP (net.Server) reports
+      // failure via the 'error' event; listen for both so either rejects.
+      // An undefined/empty address makes both stacks bind every interface.
+      const addr = state.address || undefined;
+      await Promise.all([
+        new Promise((resolve, reject) => {
+          udp.once('error', reject);
+          udp.listen(state.port, addr).then(resolve, reject);
+        }),
+        new Promise((resolve, reject) => {
+          tcp.once('error', reject);
+          tcp.listen(state.port, addr, () => resolve());
+        }),
+      ]);
+      state.listening = true;
+      state.error = '';
+    } catch (e) {
+      // Roll back a half-open state (e.g. UDP bound but TCP failed).
+      try { udp.close(); } catch (_) { /* already closed */ }
+      try { tcp.close(); } catch (_) { /* already closed */ }
+      udp = null;
+      tcp = null;
+      state.listening = false;
+      state.error = (e && e.code) || e.message;
+      throw e;
+    }
   }
 
   function close() {
-    udp.close();
-    tcp.close();
+    try { udp.close(); } catch (_) { /* already closed */ }
+    try { tcp.close(); } catch (_) { /* already closed */ }
+    udp = null;
+    tcp = null;
+    state.listening = false;
   }
 
-  return { udp, tcp, start, close };
+  async function restart(newPort, newAddress) {
+    close();
+    state.port = newPort;
+    state.address = newAddress;
+    return start();
+  }
+
+  function status() {
+    return { port: state.port, address: state.address || '0.0.0.0', listening: state.listening, error: state.error };
+  }
+
+  return { udp, tcp, start, close, restart, status };
 }
 
 module.exports = { createDnsServers };

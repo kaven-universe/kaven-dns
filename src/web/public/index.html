@@ -127,6 +127,10 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 .form-row label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
 .form-row input, .form-row select { width: 100%; }
 .form-row .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.form-row input.invalid-error { border-color: var(--red); }
+.form-row input.invalid-adjusted { border-color: var(--orange); }
+.hint.error { color: var(--red); }
+.hint.adjusted { color: var(--orange); }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .form-errors { background: rgba(220,38,38,.08); color: var(--red); border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
 
@@ -195,7 +199,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
           <div class="stat"><div class="label">{{ t('stats.uptimeCard') }}</div><div class="value">{{ fmtDuration(stats.uptimeMs) }}</div><div class="sub">{{ t('stats.startedAt', {time: fmtDateTime(stats.startedAt)}) }}</div></div>
           <div class="stat"><div class="label">{{ t('stats.cpu') }}</div><div class="value">{{ systemInfo.processCpu ?? 0 }}%</div><div class="sub">{{ t('stats.processCpu', {n: systemInfo.processCpu ?? 0}) }} · {{ t('stats.systemCpu', {n: systemInfo.systemCpu ?? 0}) }} · {{ t('stats.cores', {n: systemInfo.cores ?? 0}) }}</div></div>
           <div class="stat"><div class="label">{{ t('stats.memory') }}</div><div class="value">{{ t('stats.processMem', {n: systemInfo.processRSSMB ?? 0}) }}</div><div class="sub">{{ t('stats.systemMem', {used: ((systemInfo.usedMemMB ?? 0)/1024).toFixed(1), total: ((systemInfo.totalMemMB ?? 0)/1024).toFixed(1)}) }}</div></div>
-          <div class="stat"><div class="label">{{ t('stats.server') }}</div><div class="value" style="font-size:18px;word-break:break-all">{{ systemInfo.hostname || '-' }}</div><div class="sub" :title="systemInfo.release">{{ systemInfo.platform }} · {{ systemInfo.arch }} · Node {{ (systemInfo.nodeVersion || '').replace('v','') }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.server') }}</div><div class="value" style="font-size:18px;word-break:break-all">{{ systemInfo.hostname || '-' }}</div><div class="sub" :title="systemInfo.release">{{ systemInfo.platform }} · {{ systemInfo.arch }} · Node {{ (systemInfo.nodeVersion || '').replace('v','') }} · <span :title="dnsTitle" :style="{color: dnsStatus && dnsStatus.listening ? 'var(--green)' : 'var(--red)', fontWeight:600}">DNS {{ dnsStatus ? (dnsStatus.address || '0.0.0.0') + ':' + dnsStatus.port : '-' }} {{ dnsStatus && dnsStatus.listening ? '●' : '✕' }}</span></div></div>
         </div>
 
         <div class="stat-grid">
@@ -327,23 +331,27 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
               <h3>{{ t('settings.cacheLogging') }}</h3>
               <div class="form-row">
                 <label>{{ t('settings.forwardTimeout') }}</label>
-                <input type="number" v-model.number="settings.forwardTimeoutMs">
+                <input type="number" v-model.number="settings.forwardTimeoutMs" :class="{'invalid-adjusted': fieldAdjusted.forwardTimeoutMs}">
+                <div class="hint adjusted" v-if="fieldAdjusted.forwardTimeoutMs">{{ t('settings.adjustedTo', {value: settings.forwardTimeoutMs}) }}</div>
               </div>
               <div class="form-row">
                 <label>{{ t('settings.maxCache') }}</label>
-                <input type="number" v-model.number="settings.cacheMaxEntries">
+                <input type="number" v-model.number="settings.cacheMaxEntries" :class="{'invalid-adjusted': fieldAdjusted.cacheMaxEntries}">
+                <div class="hint adjusted" v-if="fieldAdjusted.cacheMaxEntries">{{ t('settings.adjustedTo', {value: settings.cacheMaxEntries}) }}</div>
               </div>
               <div class="form-row">
                 <label>{{ t('settings.ttlRange') }}</label>
                 <div style="display:flex;gap:8px">
-                  <input type="number" v-model.number="settings.ttlMin">
-                  <input type="number" v-model.number="settings.ttlMax">
+                  <input type="number" v-model.number="settings.ttlMin" :class="{'invalid-adjusted': fieldAdjusted.ttlMin}">
+                  <input type="number" v-model.number="settings.ttlMax" :class="{'invalid-adjusted': fieldAdjusted.ttlMax}">
                 </div>
                 <div class="hint">{{ t('settings.ttlHint') }}</div>
+                <div class="hint adjusted" v-if="fieldAdjusted.ttlMin || fieldAdjusted.ttlMax">{{ t('settings.adjustedTo', {value: settings.ttlMin + ' / ' + settings.ttlMax}) }}</div>
               </div>
               <div class="form-row">
                 <label>{{ t('settings.logCapacity') }}</label>
-                <input type="number" v-model.number="settings.logCapacity">
+                <input type="number" v-model.number="settings.logCapacity" :class="{'invalid-adjusted': fieldAdjusted.logCapacity}">
+                <div class="hint adjusted" v-if="fieldAdjusted.logCapacity">{{ t('settings.adjustedTo', {value: settings.logCapacity}) }}</div>
               </div>
               <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.saveSettings') }}</button>
             </div>
@@ -353,8 +361,15 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
               <h3>{{ t('settings.portsTitle') }}<span style="font-weight:400;font-size:12px;color:var(--muted)">{{ t('settings.portsHint') }}</span></h3>
               <div class="form-row">
                 <label>{{ t('settings.dnsPort') }}</label>
-                <input type="number" v-model.number="settings.dnsPort">
+                <input type="number" v-model.number="settings.dnsPort" :class="{'invalid-error': dnsNotApplied}">
                 <div class="hint">{{ t('settings.dnsPortHint') }}</div>
+                <div class="hint error" v-if="dnsNotApplied">{{ dnsNotAppliedText }}</div>
+              </div>
+              <div class="form-row">
+                <label>{{ t('settings.bindAddress') }}</label>
+                <input type="text" v-model.trim="settings.bindAddress" placeholder="0.0.0.0" :class="{'invalid-error': dnsNotApplied}">
+                <div class="hint">{{ t('settings.bindAddressHint') }}</div>
+                <div class="hint error" v-if="dnsNotApplied">{{ dnsNotAppliedText }}</div>
               </div>
               <div class="form-row">
                 <label>{{ t('settings.webPort') }}</label>
@@ -620,9 +635,14 @@ const I18N = {
     'settings.saveSettings': 'Save Settings',
     'settings.saving': 'Saving...',
     'settings.portsTitle': 'Service Ports',
-    'settings.portsHint': ' (restart required to apply)',
+    'settings.portsHint': ' (applied immediately after saving)',
     'settings.dnsPort': 'DNS port (UDP + TCP)',
     'settings.dnsPortHint': 'Port 53 requires administrator privileges on Windows; use e.g. 5330 for testing',
+    'settings.bindAddress': 'DNS listen address',
+    'settings.bindAddressHint': 'An IP of this machine, or 0.0.0.0 (default) for every interface; 127.0.0.1 = local only',
+    'settings.dnsNotApplied': 'Not applied: DNS failed to listen ({error}); fix the address/port and save again',
+    'settings.adjustedTo': 'Adjusted to {value} (the entered value was outside the allowed range)',
+    'toast.adjusted': 'Some values were adjusted to the allowed ranges and are shown below',
     'settings.webPort': 'Web console port',
     'settings.savePorts': 'Save Ports',
     'settings.cacheMgmt': 'Cache Management',
@@ -638,8 +658,11 @@ const I18N = {
     'settings.submitting': 'Submitting...',
     'toast.ruleSaved': 'Rule saved, effective immediately',
     'toast.removed': 'Removed',
-    'toast.savedRestart': 'Saved; restart the process to apply port changes',
     'toast.saved': 'Saved',
+    'toast.dnsPortFailed': 'Saved, but DNS failed to listen on {addr}:{port} ({error}); DNS resolution is not served until the address/port is usable',
+    'toast.webMoved': 'Console moved to port {port}; redirecting... (you may need to sign in again)',
+    'stats.dnsOk': 'DNS listening on {addr}:{port} (UDP + TCP)',
+    'stats.dnsFail': 'DNS is NOT listening on {addr}:{port}: {error}',
     'toast.passwordChanged': 'Password changed',
     'toast.fillAll': 'Please fill in all fields',
     'toast.passwordMismatch': 'New passwords do not match',
@@ -778,9 +801,14 @@ const I18N = {
     'settings.saveSettings': '保存设置',
     'settings.saving': '保存中...',
     'settings.portsTitle': '服务端口',
-    'settings.portsHint': '（修改后需重启进程生效）',
+    'settings.portsHint': '（保存后立即生效）',
     'settings.dnsPort': 'DNS 端口（UDP + TCP）',
     'settings.dnsPortHint': 'Windows 下监听 53 需要管理员权限；调试可先用 5330 等端口',
+    'settings.bindAddress': 'DNS 监听地址',
+    'settings.bindAddressHint': '本机某个 IP，或 0.0.0.0（默认，监听全部网卡）；127.0.0.1 = 仅本机',
+    'settings.dnsNotApplied': '未生效：DNS 监听失败（{error}），请修改地址/端口后重新保存',
+    'settings.adjustedTo': '已调整为 {value}（原值超出允许范围）',
+    'toast.adjusted': '部分数值已调整为允许范围，详见字段下方提示',
     'settings.webPort': 'Web 管理端口',
     'settings.savePorts': '保存端口',
     'settings.cacheMgmt': '缓存管理',
@@ -796,8 +824,11 @@ const I18N = {
     'settings.submitting': '提交中...',
     'toast.ruleSaved': '规则已保存，即时生效',
     'toast.removed': '已删除',
-    'toast.savedRestart': '已保存，端口变更需重启进程后生效',
     'toast.saved': '已保存',
+    'toast.dnsPortFailed': '已保存，但 DNS 监听 {addr}:{port} 失败（{error}），地址/端口可用前无法提供解析',
+    'toast.webMoved': '控制台已迁移到端口 {port}，正在跳转……（可能需要重新登录）',
+    'stats.dnsOk': 'DNS 正在监听 {addr}:{port}（UDP + TCP）',
+    'stats.dnsFail': 'DNS 未在 {addr}:{port} 上监听：{error}',
     'toast.passwordChanged': '密码已修改',
     'toast.fillAll': '请填写完整',
     'toast.passwordMismatch': '两次输入的新密码不一致',
@@ -822,7 +853,7 @@ createApp({
       loginPassword: '', loginError: '', loginLoading: false,
       // The active tab lives in the URL hash (#/dashboard, #/rules, #/settings)
       tab: tabFromHash(),
-      stats: {}, cacheInfo: {}, systemInfo: {},
+      stats: {}, cacheInfo: {}, systemInfo: {}, dnsStatus: null,
       logs: [],
       logFilter: { domain: '', source: '' },
       autoRefresh: true,
@@ -833,9 +864,13 @@ createApp({
       settings: {
         upstreams: [], forwardTimeoutMs: 3000, cacheMaxEntries: 10000,
         ttlMin: 10, ttlMax: 3600, logCapacity: 1000, dnsPort: 53, webPort: 8080,
-        sessionTtlHours: 24,
+        bindAddress: '0.0.0.0', sessionTtlHours: 24,
       },
       savingSettings: false, savingPw: false,
+      // Per-field feedback after a save: clamped values (orange) and a DNS
+      // address/port that failed to re-listen (red)
+      fieldAdjusted: {},
+      dnsNotApplied: false, dnsNotAppliedText: '',
       pwForm: { current: '', next: '', confirm: '' },
       testForm: { domain: '', type: 'A' },
       testResult: null, testLoading: false,
@@ -843,6 +878,13 @@ createApp({
     };
   },
   computed: {
+    dnsTitle() {
+      if (!this.dnsStatus) return '';
+      const addr = this.dnsStatus.address || '0.0.0.0';
+      return this.dnsStatus.listening
+        ? this.t('stats.dnsOk', { addr, port: this.dnsStatus.port })
+        : this.t('stats.dnsFail', { addr, port: this.dnsStatus.port, error: this.dnsStatus.error || '?' });
+    },
     valuePlaceholder() {
       const t = this.ruleModal.form.type;
       if (t === 'A') return this.t('modal.valuePlaceholderA');
@@ -956,6 +998,7 @@ createApp({
         this.stats = data.stats;
         this.cacheInfo = data.cache;
         this.systemInfo = data.system || {};
+        this.dnsStatus = data.dns || null;
       } catch (_) { /* silent polling failure */ }
     },
     async refreshLogs() {
@@ -1122,9 +1165,11 @@ createApp({
           cacheMaxEntries: c.cacheMaxEntries,
           ttlMin: c.ttlMin, ttlMax: c.ttlMax,
           logCapacity: c.logCapacity,
-          dnsPort: c.dnsPort, webPort: c.webPort,
+          dnsPort: c.dnsPort, webPort: c.webPort, bindAddress: c.bindAddress || '0.0.0.0',
           sessionTtlHours: c.sessionTtlHours,
         };
+        this.fieldAdjusted = {};
+        this.dnsNotApplied = false; this.dnsNotAppliedText = '';
       } catch (e) {
         this.showToast(e.message, 'error');
       }
@@ -1139,10 +1184,35 @@ createApp({
           ttlMin: this.settings.ttlMin, ttlMax: this.settings.ttlMax,
           logCapacity: this.settings.logCapacity,
           dnsPort: this.settings.dnsPort, webPort: this.settings.webPort,
-          sessionTtlHours: this.settings.sessionTtlHours,
+          bindAddress: this.settings.bindAddress, sessionTtlHours: this.settings.sessionTtlHours,
         };
         const data = await this.api('/api/config', { method: 'PUT', body });
-        this.showToast(data.restartRequired ? this.t('toast.savedRestart') : this.t('toast.saved'));
+        // Sync values the server clamped to valid ranges and flag the fields
+        this.fieldAdjusted = {};
+        for (const [k, v] of Object.entries(data.adjusted || {})) {
+          this.settings[k] = v;
+          this.fieldAdjusted[k] = true;
+        }
+        this.dnsNotApplied = Boolean(data.dns && !data.dns.applied);
+        this.dnsNotAppliedText = this.dnsNotApplied
+          ? this.t('settings.dnsNotApplied', { error: data.dns.error })
+          : '';
+        if (data.newWebPort) {
+          // The server moves the console after this response flushes; give the
+          // toast a moment, then follow it to the new origin. The auth token
+          // lives in localStorage, which is per-origin, so a re-login may be
+          // needed after the jump.
+          this.showToast(this.t('toast.webMoved', { port: data.newWebPort }));
+          setTimeout(() => {
+            location.replace(`${location.protocol}//${location.hostname}:${data.newWebPort}${location.pathname}${location.hash}`);
+          }, 2000);
+        } else if (this.dnsNotApplied) {
+          this.showToast(this.t('toast.dnsPortFailed', { addr: this.settings.bindAddress || '0.0.0.0', port: this.settings.dnsPort, error: data.dns.error }), 'error');
+        } else if (Object.keys(this.fieldAdjusted).length) {
+          this.showToast(this.t('toast.adjusted'), 'error');
+        } else {
+          this.showToast(this.t('toast.saved'));
+        }
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {
