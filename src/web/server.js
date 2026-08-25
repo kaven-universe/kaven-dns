@@ -2,6 +2,7 @@
 
 const path = require('path');
 const net = require('net');
+const os = require('os');
 const crypto = require('crypto');
 const express = require('express');
 const { Packet } = require('dns2');
@@ -14,24 +15,83 @@ const { createSystemMonitor } = require('../system');
 
 const UPSTREAM_RE = /^\d+\.\d+\.\d+\.\d+(:\d{1,5})?$/;
 
-function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getDnsStatus, restartDns, runtime }) {
+// Local IPv4 addresses (for the bind-address dropdowns in the UI).
+function getLocalIPv4s() {
+  const ips = [];
+  for (const name of Object.keys(os.networkInterfaces())) {
+    for (const iface of os.networkInterfaces()[name] || []) {
+      if (iface.family === 'IPv4' && !iface.internal) ips.push(iface.address);
+    }
+  }
+  return ips;
+}
+
+// When a service binds 0.0.0.0 (every interface), local probes must target
+// the loopback address instead.
+const effectiveProbeAddress = address =>
+  !address || address === '0.0.0.0' || address === '::' ? '127.0.0.1' : address;
+
+// Base URL of the Web console for the given bind address/port.
+function consoleBaseUrl(port, address) {
+  return `http://${effectiveProbeAddress(address)}:${port}`;
+}
+
+// Best-effort check whether `address:port` can be bound by the DNS server,
+// i.e. both a UDP (dgram) and a TCP (net.Server) listen succeed on it.
+function probeBindable(address, port) {
+  return new Promise(resolve => {
+    const dgram = require('dgram');
+    const udp = dgram.createSocket('udp4');
+    const tcp = net.createServer();
+    const state = { udp: null, tcp: null };
+    let timer;
+    const finish = () => {
+      clearTimeout(timer);
+      try { udp.close(); } catch (_) { /* already closed */ }
+      try { tcp.close(); } catch (_) { /* already closed */ }
+      resolve({
+        available: state.udp === 'ok' && state.tcp === 'ok',
+        udp: state.udp || 'timeout',
+        tcp: state.tcp || 'timeout',
+        address: address || '0.0.0.0',
+        port,
+      });
+    };
+    const maybeDone = () => { if (state.udp !== null && state.tcp !== null) finish(); };
+    udp.once('error', e => { state.udp = e.code || e.message; maybeDone(); });
+    udp.once('listening', () => { state.udp = 'ok'; try { udp.close(); } catch (_) { /* ignore */ } maybeDone(); });
+    try { udp.bind(port, address || undefined); } catch (e) { state.udp = e.code || e.message; maybeDone(); }
+    tcp.once('error', e => { state.tcp = e.code || e.message; maybeDone(); });
+    try {
+      tcp.listen(port, address || undefined, () => { state.tcp = 'ok'; tcp.close(() => maybeDone()); });
+    } catch (e) { state.tcp = e.code || e.message; maybeDone(); }
+    timer = setTimeout(finish, 3000);
+  });
+}
+
+function createWebServer({ config, rulesStore, logs, cache, resolver, auth, syslog, getDnsStatus, restartDns, runtime }) {
   const app = express();
   const systemMonitor = createSystemMonitor();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '256kb' }));
-  app.use(express.static(path.join(__dirname, 'public')));
 
-  // Negotiate the response language for user-facing API messages ('zh'/'en')
+  // Negotiate the response language for user-facing API messages ('zh'/'en').
   app.use((req, res, next) => {
     req.lang = normalizeLang(req.headers['accept-language']);
     next();
   });
 
+  app.use(express.static(path.join(__dirname, 'public')));
+
   // ---- Authentication ----
   app.post('/api/auth/login', (req, res) => {
     const ip = req.socket.remoteAddress || 'unknown';
     const result = auth.login(String((req.body && req.body.password) || ''), ip, req.lang);
-    if (!result.ok) return res.status(401).json({ error: result.error });
+    if (!result.ok) {
+      if (syslog) syslog.record('auth', `login failed from ${ip}`, 'warn');
+      return res.status(401).json({ error: result.error });
+    }
+    if (syslog) syslog.record('auth', `signed in from ${ip}`);
     res.json({ token: result.token });
   });
 
@@ -45,6 +105,98 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
     res.json({ ok: true });
   });
 
+  // ---- First-run setup (public; active only until an admin password is set) ----
+  app.get('/api/setup/status', (req, res) => {
+    res.json({ needsSetup: !config.passwordHash, localIPs: getLocalIPv4s() });
+  });
+
+  // Availability check for the DNS address:port the user is about to enter.
+  app.post('/api/setup/check', async (req, res) => {
+    if (config.passwordHash)
+      return res.status(409).json({ error: t(req.lang, 'setup.already_done') });
+    const body = req.body || {};
+    const dnsPort = Number(body.dnsPort);
+    const bindAddress = String(body.bindAddress || '').trim();
+    if (!Number.isInteger(dnsPort) || dnsPort < 1 || dnsPort > 65535)
+      return res.status(400).json({ error: t(req.lang, 'config.port_range', { key: 'dnsPort' }) });
+    if (bindAddress && !net.isIP(bindAddress))
+      return res.status(400).json({ error: t(req.lang, 'config.bind_invalid', { value: bindAddress }) });
+
+    const addr = bindAddress || '0.0.0.0';
+    const result = await probeBindable(addr, dnsPort);
+    // When busy, also probe 127.0.0.1 on the same port so the wizard can
+    // suggest a local-only alternative. If OUR OWN DNS server already holds
+    // the loopback port (the 0.0.0.0 -> 127.0.0.1 fallback), it is still
+    // usable: completing setup restarts DNS onto the chosen address, which
+    // closes the fallback listener first.
+    if (!result.available && addr !== '127.0.0.1') {
+      const cur = getDnsStatus ? getDnsStatus() : null;
+      const selfHoldsLoopback = cur && cur.listening &&
+        cur.port === dnsPort && cur.address === '127.0.0.1';
+      let alt = null;
+      if (selfHoldsLoopback) {
+        alt = { available: true, address: '127.0.0.1', port: dnsPort, self: true };
+      } else {
+        alt = await probeBindable('127.0.0.1', dnsPort);
+      }
+      if (alt.available) result.suggestion = { address: '127.0.0.1', port: dnsPort };
+    }
+    res.json(result);
+  });
+
+  app.post('/api/setup', async (req, res) => {
+    if (config.passwordHash)
+      return res.status(409).json({ error: t(req.lang, 'setup.already_done') });
+    const body = req.body || {};
+    const tr = (key, args) => t(req.lang, key, args);
+    const errors = [];
+
+    const password = String(body.password || '');
+    if (password.length < 6) errors.push(tr('setup.password_min'));
+
+    const dnsPort = Number(body.dnsPort);
+    if (!Number.isInteger(dnsPort) || dnsPort < 1 || dnsPort > 65535)
+      errors.push(tr('config.port_range', { key: 'dnsPort' }));
+
+    const bindAddress = String(body.bindAddress || '').trim();
+    if (bindAddress && !net.isIP(bindAddress))
+      errors.push(tr('config.bind_invalid', { value: bindAddress }));
+
+    // Optional: the Web console's own bind address (defaults to the current one).
+    const webBind = body.webBindAddress !== undefined && body.webBindAddress !== null && body.webBindAddress !== ''
+      ? String(body.webBindAddress).trim()
+      : config.webBindAddress;
+    if (!net.isIP(webBind))
+      errors.push(tr('config.bind_invalid', { value: webBind }));
+
+    if (errors.length) return res.status(400).json({ error: errors.join('; ') });
+
+    const webBindChanged = webBind !== config.webBindAddress;
+
+    config.passwordHash = hashPassword(password);
+    config.dnsPort = dnsPort;
+    config.bindAddress = bindAddress || '0.0.0.0';
+    if (webBindChanged) config.webBindAddress = webBind;
+    sanitize(config);
+    saveConfig(config);
+
+    const response = { ok: true };
+    if (restartDns) response.dns = await restartDns(config.dnsPort, config.bindAddress);
+    if (syslog) syslog.record('setup', `first-run setup completed: dns ${config.dnsPort}@${config.bindAddress}, web@${config.webBindAddress}`);
+
+    // Rebind the console when the web bind address changed (after the response
+    // has flushed, so the current connection is not cut mid-reply).
+    if (webBindChanged) {
+      response.newWebUrl = consoleBaseUrl(config.webPort, config.webBindAddress);
+      res.once('finish', () => {
+        if (runtime && runtime.moveWeb)
+          runtime.moveWeb(config.webPort, config.webBindAddress).catch(e =>
+            console.error('[web] failed to re-bind console to', config.webBindAddress, '-', e.message));
+      });
+    }
+    res.json(response);
+  });
+
   // ---- All APIs below require authentication ----
   app.use('/api', auth.middleware);
 
@@ -53,10 +205,18 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
     res.json({ rules: rulesStore.list() });
   });
 
+  const ruleLabel = rule => {
+    const n = rule.domains ? rule.domains.length : 0;
+    const first = rule.domains && rule.domains[0] ? rule.domains[0] : '?';
+    return `${first}${n > 1 ? ' (+' + (n - 1) + ')' : ''} ${rule.type || ''}`;
+  };
+
   app.post('/api/rules', (req, res) => {
     const { errors, value } = validateRule(req.body || {}, req.lang);
     if (errors.length) return res.status(400).json({ error: errors.join('; ') });
-    res.status(201).json({ rule: rulesStore.add(value) });
+    const rule = rulesStore.add(value);
+    if (syslog) syslog.record('rules', `added ${ruleLabel(rule)}`);
+    res.status(201).json({ rule });
   });
 
   app.put('/api/rules/:id', (req, res) => {
@@ -64,12 +224,17 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
     if (!old) return res.status(404).json({ error: t(req.lang, 'rules.not_found') });
     const { errors, value } = validateRule({ ...old, ...req.body }, req.lang);
     if (errors.length) return res.status(400).json({ error: errors.join('; ') });
-    res.json({ rule: rulesStore.update(req.params.id, value) });
+    const rule = rulesStore.update(req.params.id, value);
+    if (syslog) syslog.record('rules', `updated ${ruleLabel(rule)}`);
+    res.json({ rule });
   });
 
   app.delete('/api/rules/:id', (req, res) => {
+    const rule = rulesStore.getAll().find(r => r.id === req.params.id);
+    if (!rule) return res.status(404).json({ error: t(req.lang, 'rules.not_found') });
     if (!rulesStore.remove(req.params.id))
       return res.status(404).json({ error: t(req.lang, 'rules.not_found') });
+    if (syslog) syslog.record('rules', `removed ${ruleLabel(rule)}`);
     res.json({ ok: true });
   });
 
@@ -123,6 +288,8 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
       }
     }
 
+    if (syslog) syslog.record('rules', `imported: +${added} added, ${updated} updated, ${errors.length} skipped (${mode})`);
+
     res.json({
       ok: true,
       mode,
@@ -154,16 +321,35 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
     });
   });
 
+  // System log: console output + audit events (operation/config changes)
+  app.get('/api/syslog', (req, res) => {
+    let limit = Number(req.query.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 2000) limit = 400;
+    res.json(syslog ? syslog.snapshot(limit) : { console: [], events: [] });
+  });
+
+  // Stop the whole process (used by the packaged desktop app's Quit button).
+  // The response is flushed before exit; requires an authenticated session.
+  app.post('/api/shutdown', auth.middleware, (req, res) => {
+    if (syslog) syslog.record('shutdown', 'stopping via the console Quit button');
+    res.json({ ok: true });
+    res.once('finish', () => {
+      console.log('[web] shutdown requested via API; exiting.');
+      process.exit(0);
+    });
+  });
+
   // Cache management
   app.post('/api/cache/flush', (req, res) => {
     const flushed = cache.flush();
+    if (syslog) syslog.record('cache', `flushed ${flushed} cached entries`);
     res.json({ ok: true, flushed });
   });
 
   // Config read/write (never returns the password hash)
   app.get('/api/config', (req, res) => {
     const { passwordHash, ...rest } = config;
-    res.json({ config: { ...rest, hasPassword: Boolean(passwordHash) } });
+    res.json({ config: { ...rest, hasPassword: Boolean(passwordHash) }, localIPs: getLocalIPv4s() });
   });
 
   app.put('/api/config', async (req, res) => {
@@ -215,6 +401,13 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
         errors.push(tr('config.bind_invalid', { value: bindAddress }));
     }
 
+    let webBindAddress;
+    if (body.webBindAddress !== undefined) {
+      webBindAddress = String(body.webBindAddress).trim() || '0.0.0.0';
+      if (!net.isIP(webBindAddress))
+        errors.push(tr('config.bind_invalid', { value: webBindAddress }));
+    }
+
     let passwordChanged = false;
     if (body.newPassword !== undefined && body.newPassword !== '') {
       if (!body.currentPassword || hashPassword(body.currentPassword) !== config.passwordHash)
@@ -230,12 +423,14 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
     const dnsPortChanged = nums.dnsPort !== undefined && nums.dnsPort !== config.dnsPort;
     const bindChanged = bindAddress !== undefined && bindAddress !== config.bindAddress;
     const webPortChanged = nums.webPort !== undefined && nums.webPort !== config.webPort;
+    const webBindChanged = webBindAddress !== undefined && webBindAddress !== config.webBindAddress;
 
     if (errors.length) return res.status(400).json({ error: errors.join('; ') });
 
-    if (webPortChanged && (!runtime || !runtime.probeWeb))
-      return res.status(500).json({ error: t(req.lang, 'api.internal_error') });
     if (webPortChanged) {
+      if (!runtime || !runtime.probeWeb) {
+        return res.status(500).json({ error: t(req.lang, 'api.internal_error') });
+      }
       try {
         await runtime.probeWeb(nums.webPort);
       } catch (_) {
@@ -244,6 +439,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
     }
 
     if (body._upstreams) config.upstreams = body._upstreams;
+    const old = { ...config };
     if (nums.forwardTimeoutMs !== undefined) config.forwardTimeoutMs = nums.forwardTimeoutMs;
     if (nums.cacheMaxEntries !== undefined) {
       config.cacheMaxEntries = nums.cacheMaxEntries;
@@ -258,6 +454,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
     if (nums.sessionTtlHours !== undefined) config.sessionTtlHours = nums.sessionTtlHours;
     if (nums.dnsPort !== undefined) config.dnsPort = nums.dnsPort;
     if (bindAddress !== undefined) config.bindAddress = bindAddress;
+    if (webBindAddress !== undefined) config.webBindAddress = webBindAddress;
     if (nums.webPort !== undefined) config.webPort = nums.webPort;
     if (passwordChanged) config.passwordHash = hashPassword(String(body.newPassword));
 
@@ -275,13 +472,32 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
     if ((dnsPortChanged || bindChanged) && restartDns)
       response.dns = await restartDns(config.dnsPort, config.bindAddress);
     if (webPortChanged) response.newWebPort = nums.webPort;
+    // Changing the web bind address/port moves the console; give the frontend
+    // the exact base URL to follow.
+    if (webPortChanged || webBindChanged)
+      response.newWebUrl = consoleBaseUrl(config.webPort, config.webBindAddress);
+
+    if (syslog) {
+      const changed = [];
+      if (dnsPortChanged) changed.push(`dnsPort=${config.dnsPort}`);
+      if (bindChanged) changed.push(`bind=${config.bindAddress}`);
+      if (webPortChanged) changed.push(`webPort=${nums.webPort}`);
+      if (webBindChanged) changed.push(`webBind=${config.webBindAddress}`);
+      if (passwordChanged) changed.push('password');
+      for (const key of ['forwardTimeoutMs', 'cacheMaxEntries', 'ttlMin', 'ttlMax', 'logCapacity', 'sessionTtlHours']) {
+        if (nums[key] !== undefined && old[key] !== config[key]) changed.push(`${key}=${config[key]}`);
+      }
+      if (old.upstreams !== config.upstreams && body._upstreams) changed.push(`upstreams(${config.upstreams.length})`);
+      syslog.record('config', `updated: ${changed.join(', ') || 'no changes'}`);
+    }
+
     res.json(response);
 
     // Move the console after the response has flushed to the client.
-    if (webPortChanged) {
+    if (webPortChanged || webBindChanged) {
       res.once('finish', () => {
-        runtime.moveWeb(nums.webPort).catch(e =>
-          console.error('[web] failed to move console to port', nums.webPort, '-', e.message));
+        runtime.moveWeb(nums.webPort !== undefined ? nums.webPort : config.webPort, config.webBindAddress).catch(e =>
+          console.error('[web] failed to move console to', config.webBindAddress, nums.webPort, '-', e.message));
       });
     }
   });
@@ -349,9 +565,9 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, getD
     res.status(500).json({ error: t(req.lang, 'api.internal_error') });
   });
 
-  function listen(port) {
+  function listen(port, address) {
     return new Promise((resolve, reject) => {
-      const server = app.listen(port, () => resolve(server));
+      const server = app.listen(port, address || undefined, () => resolve(server));
       server.on('error', reject);
     });
   }

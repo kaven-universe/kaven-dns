@@ -3,8 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2563eb">
 <title>Kaven DNS Console</title>
-<script src="https://cdn.jsdelivr.net/npm/vue@3.4.38/dist/vue.global.prod.js"></script>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon.ico" type="image/x-icon">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="vendor/vue.global.prod.js"></script>
 <style>
 :root {
   --bg: #f2f4f8; --card: #ffffff; --border: #e3e8ef;
@@ -56,6 +60,48 @@ textarea { width: 100%; resize: vertical; font-family: inherit; }
 .login-card .lang-switch { margin-bottom: 18px; }
 .login-error { color: var(--red); font-size: 13px; min-height: 20px; margin-bottom: 8px; }
 
+/* First-run setup wizard */
+.login-card.wide { width: 480px; text-align: left; }
+.login-card.wide .lang-switch { display: flex; justify-content: center; }
+.login-card.wide .form-row input { margin-bottom: 0; }
+.login-card.wide .btn { margin-top: 6px; }
+.setup-card { padding-top: 28px; }
+.setup-brand {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 18px; font-weight: 700; margin-bottom: 18px;
+}
+.setup-brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); }
+
+/* Step bar */
+.setup-steps { display: flex; align-items: flex-start; margin: 0 0 20px; }
+.sstep { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 96px; }
+.sstep .dot {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600;
+  background: var(--border); color: var(--muted);
+  transition: all .2s;
+}
+.sstep.active .dot { background: var(--primary); color: #fff; box-shadow: 0 0 0 4px rgba(37,99,235,.15); }
+.sstep.done .dot { background: var(--green); color: #fff; }
+.sstep .label { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.3; }
+.sstep.active .label { color: var(--primary); font-weight: 600; }
+.sline { flex: 1; height: 2px; background: var(--border); margin-top: 14px; border-radius: 1px; transition: background .2s; }
+.sline.done { background: var(--green); }
+
+.setup-sub { text-align: center !important; margin: 0 0 18px; }
+.setup-body { min-height: 270px; }
+.setup-nav { display: flex; gap: 10px; margin-top: 2px; }
+.setup-nav .btn { flex: 1; margin-top: 0; }
+.setup-check { font-size: 13px; margin: -6px 0 12px; padding: 6px 10px; border-radius: 6px; }
+.setup-check.ok { background: rgba(22,163,74,.1); color: var(--green); }
+.setup-check.bad { background: rgba(220,38,38,.1); color: var(--red); }
+
+/* Step switch animation */
+.setup-fade-enter-active, .setup-fade-leave-active { transition: opacity .18s ease, transform .18s ease; }
+.setup-fade-enter-from { opacity: 0; transform: translateY(8px); }
+.setup-fade-leave-to { opacity: 0; transform: translateY(-8px); }
+
 /* Layout */
 header {
   background: #fff; border-bottom: 1px solid var(--border);
@@ -97,6 +143,22 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 .badge.ok { background: rgba(8,145,178,.12); color: var(--cyan); }
 .badge.fail { background: rgba(220,38,38,.12); color: var(--red); }
 .badge.muted { background: #eef2f7; color: var(--muted); }
+.badge.log { background: #eef2f7; color: var(--muted); }
+.badge.warn { background: rgba(217,119,6,.12); color: var(--orange); }
+.badge.error { background: rgba(220,38,38,.12); color: var(--red); }
+
+/* System log console output */
+.console-log {
+  background: #0f172a; color: #cbd5e1;
+  font: 12px/1.6 Consolas, "Cascadia Mono", "Courier New", monospace;
+  border-radius: 8px; padding: 12px 14px;
+  max-height: 520px; overflow: auto;
+}
+.console-log .cline { display: flex; gap: 12px; padding: 1px 0; white-space: pre-wrap; word-break: break-all; }
+.console-log .ctime { color: #64748b; flex: none; }
+.console-log .cline.warn .cmsg { color: #fbbf24; }
+.console-log .cline.error .cmsg { color: #f87171; }
+.console-log .empty { color: #64748b; }
 
 /* Toolbar */
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
@@ -151,14 +213,99 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 }
 .toast.success { background: var(--green); }
 .toast.error { background: var(--red); }
+.exited-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 999; }
 @media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <div id="app" :lang="locale">
 
+  <!-- First-run setup (no admin password yet) -->
+  <div v-if="needsSetup" class="login-wrap">
+    <div class="login-card wide setup-card">
+      <div class="lang-switch">
+        <button :class="{on: locale==='zh'}" @click="setLocale('zh')">中文</button>
+        <button :class="{on: locale==='en'}" @click="setLocale('en')">EN</button>
+      </div>
+      <div class="setup-brand"><span class="dot"></span>Kaven DNS</div>
+
+      <div class="setup-steps">
+        <div class="sstep" :class="{ active: setupStep === 1, done: setupStep > 1 }">
+          <div class="dot"><span v-if="setupStep > 1">✓</span><span v-else>1</span></div>
+          <div class="label">{{ t('setup.stepPassword') }}</div>
+        </div>
+        <div class="sline" :class="{ done: setupStep > 1 }"></div>
+        <div class="sstep" :class="{ active: setupStep === 2 }">
+          <div class="dot"><span>2</span></div>
+          <div class="label">{{ t('setup.stepService') }}</div>
+        </div>
+      </div>
+
+      <transition name="setup-fade" mode="out-in">
+        <!-- Step 1: admin password -->
+        <div v-if="setupStep === 1" key="pwd" class="setup-body">
+          <p class="setup-sub">{{ t('setup.step1Subtitle') }}</p>
+          <div class="form-row">
+            <label>{{ t('setup.password') }}</label>
+            <input type="password" autocomplete="new-password" v-model="setupForm.password" :placeholder="t('setup.passwordPlaceholder')">
+          </div>
+          <div class="form-row">
+            <label>{{ t('setup.passwordConfirm') }}</label>
+            <input type="password" autocomplete="new-password" v-model="setupForm.passwordConfirm" @keyup.enter="setupNext">
+          </div>
+          <div class="login-error">{{ setupError }}</div>
+          <button class="btn" @click="setupNext">{{ t('setup.next') }}</button>
+        </div>
+
+        <!-- Step 2: DNS listen address + port -->
+        <div v-else key="dns" class="setup-body">
+          <p class="setup-sub">{{ t('setup.step2Subtitle') }}</p>
+          <div class="form-row">
+            <label>{{ t('setup.dnsPort') }}</label>
+            <input type="number" v-model.number="setupForm.dnsPort" @input="dnsCheck = null">
+          </div>
+          <div class="form-row">
+            <label>{{ t('setup.bindAddress') }}</label>
+            <input type="text" list="setupLocalIps" v-model.trim="setupForm.bindAddress" @input="dnsCheck = null">
+            <div class="hint">{{ t('setup.bindAddressHint') }}</div>
+          </div>
+          <div class="form-row">
+            <label>{{ t('setup.webBindAddress') }}</label>
+            <input type="text" list="setupLocalIps" v-model.trim="setupForm.webBindAddress">
+            <div class="hint">{{ t('setup.webBindAddressHint') }}</div>
+          </div>
+          <div class="form-row" style="margin-top:2px">
+            <button type="button" class="btn secondary" :disabled="checkingDns" @click="checkDnsAvailability">
+              {{ checkingDns ? t('setup.checking') : t('setup.checkAvailability') }}
+            </button>
+          </div>
+          <div v-if="dnsCheck" class="setup-check" :class="dnsCheck.available ? 'ok' : 'bad'">
+            <template v-if="dnsCheck.available">{{ t('setup.available', { addr: dnsCheck.address, port: dnsCheck.port }) }}</template>
+            <template v-else>
+              {{ t('setup.unavailable', { addr: dnsCheck.address, port: dnsCheck.port, error: dnsCheck.error }) }}
+              <span v-if="dnsCheck.suggestion">{{ t('setup.suggestLoopback', { port: dnsCheck.suggestion.port }) }}</span>
+            </template>
+          </div>
+          <div class="login-error">{{ setupError }}</div>
+          <div class="setup-nav">
+            <button class="btn secondary" :disabled="setupLoading" @click="setupBack">{{ t('setup.back') }}</button>
+            <button class="btn" :disabled="setupLoading" @click="setup">
+              {{ setupLoading ? t('setup.saving') : t('setup.finish') }}
+            </button>
+          </div>
+        </div>
+      </transition>
+
+      <datalist id="setupLocalIps">
+        <option value="0.0.0.0">All interfaces</option>
+        <option value="127.0.0.1">Loopback</option>
+        <option v-for="ip in localIPs" :key="ip" :value="ip">{{ ip }}</option>
+      </datalist>
+    </div>
+  </div>
+
   <!-- Login -->
-  <div v-if="!authed" class="login-wrap">
+  <div v-else-if="!authed" class="login-wrap">
     <div class="login-card">
       <div class="lang-switch">
         <button :class="{on: locale==='zh'}" @click="setLocale('zh')">中文</button>
@@ -166,7 +313,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
       </div>
       <h1>Kaven DNS</h1>
       <p>{{ t('login.subtitle') }}</p>
-      <input type="password" v-model="loginPassword" :placeholder="t('login.passwordPlaceholder')"
+      <input type="password" autocomplete="new-password" v-model="loginPassword" :placeholder="t('login.passwordPlaceholder')"
              @keyup.enter="login">
       <div class="login-error">{{ loginError }}</div>
       <button class="btn" :disabled="loginLoading" @click="login">
@@ -182,14 +329,24 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
       <nav>
         <a href="#/dashboard" :class="{active: tab==='dashboard'}">{{ t('nav.dashboard') }}</a>
         <a href="#/rules" :class="{active: tab==='rules'}">{{ t('nav.rules') }}</a>
+        <a href="#/system" :class="{active: tab==='system'}">{{ t('nav.system') }}</a>
         <a href="#/settings" :class="{active: tab==='settings'}">{{ t('nav.settings') }}</a>
       </nav>
       <div class="lang-switch" style="margin-right:14px">
         <button :class="{on: locale==='zh'}" @click="setLocale('zh')">中文</button>
         <button :class="{on: locale==='en'}" @click="setLocale('en')">EN</button>
       </div>
+      <button class="btn danger sm" @click="quitApp" style="margin-right:8px">{{ t('nav.quit') }}</button>
       <button class="btn secondary sm" @click="logout">{{ t('nav.signOut') }}</button>
     </header>
+
+    <!-- Full-screen notice once the desktop program has quit via the UI -->
+    <div v-if="exited" class="exited-overlay">
+      <div style="text-align:center">
+        <div style="font-size:20px;font-weight:600;margin-bottom:8px">{{ t('app.exitedTitle') }}</div>
+        <div style="color:var(--muted);font-size:14px">{{ t('app.exitedSub') }}</div>
+      </div>
+    </div>
 
     <main>
       <!-- Dashboard -->
@@ -315,6 +472,50 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
         </div>
       </section>
 
+      <!-- System logs -->
+      <section v-show="tab==='system'">
+        <div class="card">
+          <div class="toolbar">
+            <h3 style="margin:0">{{ t('syslog.auditTitle') }}</h3>
+            <span class="grow"></span>
+            <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px">
+              <span class="switch"><input type="checkbox" v-model="autoRefresh"><span class="slider"></span></span>
+              {{ t('log.autoRefresh') }}
+            </label>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr><th style="width:150px">{{ t('log.time') }}</th><th style="width:110px">{{ t('syslog.type') }}</th><th>{{ t('syslog.message') }}</th></tr>
+              </thead>
+              <tbody>
+                <tr v-if="!syslog.events.length"><td colspan="3" class="empty">{{ t('syslog.emptyEvents') }}</td></tr>
+                <tr v-for="(e, i) in syslog.events" :key="i">
+                  <td>{{ fmtTime(e.t) }}</td>
+                  <td><span class="badge" :class="e.level">{{ e.type }}</span></td>
+                  <td class="wrap">{{ e.msg }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="toolbar">
+            <h3 style="margin:0">{{ t('syslog.consoleTitle') }}</h3>
+            <span class="grow"></span>
+            <button class="btn secondary sm" @click="loadSystemLog">{{ t('syslog.refresh') }}</button>
+          </div>
+          <div class="console-log">
+            <div v-if="!syslog.console.length" class="empty">{{ t('syslog.emptyConsole') }}</div>
+            <div v-for="(l, i) in syslog.console" :key="i" class="cline" :class="l.level">
+              <span class="ctime">{{ fmtTime(l.t) }}</span>
+              <span class="cmsg">{{ l.msg }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Settings -->
       <section v-show="tab==='settings'">
         <div class="settings-grid">
@@ -367,7 +568,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
               </div>
               <div class="form-row">
                 <label>{{ t('settings.bindAddress') }}</label>
-                <input type="text" v-model.trim="settings.bindAddress" placeholder="0.0.0.0" :class="{'invalid-error': dnsNotApplied}">
+                <input type="text" list="settingsLocalIps" v-model.trim="settings.bindAddress" placeholder="0.0.0.0" :class="{'invalid-error': dnsNotApplied}">
                 <div class="hint">{{ t('settings.bindAddressHint') }}</div>
                 <div class="hint error" v-if="dnsNotApplied">{{ dnsNotAppliedText }}</div>
               </div>
@@ -375,8 +576,18 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 <label>{{ t('settings.webPort') }}</label>
                 <input type="number" v-model.number="settings.webPort">
               </div>
+              <div class="form-row">
+                <label>{{ t('settings.webBindAddress') }}</label>
+                <input type="text" list="settingsLocalIps" v-model.trim="settings.webBindAddress" placeholder="0.0.0.0">
+                <div class="hint">{{ t('settings.webBindAddressHint') }}</div>
+              </div>
               <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.savePorts') }}</button>
             </div>
+            <datalist id="settingsLocalIps">
+              <option value="0.0.0.0">All interfaces</option>
+              <option value="127.0.0.1">Loopback</option>
+              <option v-for="ip in localIPs" :key="ip" :value="ip">{{ ip }}</option>
+            </datalist>
             <div class="card">
               <h3>{{ t('settings.cacheMgmt') }}</h3>
               <p style="margin:0 0 12px;color:var(--muted);font-size:13px">
@@ -391,9 +602,9 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 <input type="number" v-model.number="settings.sessionTtlHours">
                 <div class="hint">{{ t('settings.sessionTtlHint') }}</div>
               </div>
-              <div class="form-row"><label>{{ t('settings.currentPassword') }}</label><input type="password" v-model="pwForm.current"></div>
-              <div class="form-row"><label>{{ t('settings.newPassword') }}</label><input type="password" v-model="pwForm.next"></div>
-              <div class="form-row"><label>{{ t('settings.confirmPassword') }}</label><input type="password" v-model="pwForm.confirm"></div>
+              <div class="form-row"><label>{{ t('settings.currentPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.current"></div>
+              <div class="form-row"><label>{{ t('settings.newPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.next"></div>
+              <div class="form-row"><label>{{ t('settings.confirmPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.confirm"></div>
               <button class="btn" :disabled="savingPw" @click="changePassword">{{ savingPw ? t('settings.submitting') : t('settings.changePassword') }}</button>
             </div>
           </div>
@@ -502,7 +713,7 @@ const { createApp } = Vue;
 
 function tabFromHash() {
   const h = (location.hash || '').replace(/^#\/?/, '');
-  return ['dashboard', 'rules', 'settings'].includes(h) ? h : 'dashboard';
+  return ['dashboard', 'rules', 'system', 'settings'].includes(h) ? h : 'dashboard';
 }
 
 const I18N = {
@@ -512,11 +723,39 @@ const I18N = {
     'login.passwordPlaceholder': 'Enter admin password',
     'login.signIn': 'Sign In',
     'login.signingIn': 'Signing in...',
+    'setup.stepPassword': 'Admin password',
+    'setup.stepService': 'Service settings',
+    'setup.step1Subtitle': 'First, choose the admin password for this console',
+    'setup.step2Subtitle': 'Next, configure the DNS and Web console listen addresses and ports',
+    'setup.password': 'Admin password',
+    'setup.passwordPlaceholder': 'At least 6 characters',
+    'setup.passwordConfirm': 'Confirm password',
+    'setup.passwordMin': 'Password must be at least 6 characters',
+    'setup.dnsPort': 'DNS port (UDP + TCP)',
+    'setup.bindAddress': 'DNS listen address',
+    'setup.bindAddressHint': '0.0.0.0 = all interfaces; 127.0.0.1 = this machine only',
+    'setup.webBindAddress': 'Web console bind address',
+    'setup.webBindAddressHint': 'Which IP the console is reachable on (0.0.0.0 = all interfaces)',
+    'setup.checkAvailability': 'Check DNS availability',
+    'setup.checking': 'Checking...',
+    'setup.available': '{addr}:{port} is available',
+    'setup.unavailable': '{addr}:{port} is busy ({error})',
+    'setup.suggestLoopback': ' — 127.0.0.1:{port} is available, switch to it',
+    'setup.next': 'Next',
+    'setup.back': 'Back',
+    'setup.finish': 'Finish',
+    'setup.saving': 'Applying...',
+    'setup.passwordMismatch': 'Passwords do not match',
     'login.sessionExpired': 'Session expired, please sign in again',
     'nav.dashboard': 'Dashboard',
     'nav.rules': 'Rules',
+    'nav.system': 'System Logs',
     'nav.settings': 'Settings',
     'nav.signOut': 'Sign Out',
+    'nav.quit': 'Quit',
+    'app.exitedTitle': 'Kaven DNS has exited',
+    'app.exitedSub': 'The DNS service is stopped; you can close this window now.',
+    'toast.quitConfirm': 'Quit Kaven DNS? The DNS service will stop.',
     'stats.total': 'Total Queries',
     'stats.fixed': 'Rule Hits',
     'stats.fixedSub': 'Fixed answers',
@@ -551,6 +790,13 @@ const I18N = {
     'log.filterDomain': 'Filter by domain',
     'log.allSources': 'All sources',
     'log.autoRefresh': 'Auto refresh',
+    'syslog.auditTitle': 'Operation Log',
+    'syslog.consoleTitle': 'Console Output',
+    'syslog.type': 'Type',
+    'syslog.message': 'Message',
+    'syslog.emptyEvents': 'No operation records yet',
+    'syslog.emptyConsole': 'No console output yet',
+    'syslog.refresh': 'Refresh',
     'log.empty': 'No queries yet',
     'log.time': 'Time',
     'log.client': 'Client',
@@ -644,6 +890,8 @@ const I18N = {
     'settings.adjustedTo': 'Adjusted to {value} (the entered value was outside the allowed range)',
     'toast.adjusted': 'Some values were adjusted to the allowed ranges and are shown below',
     'settings.webPort': 'Web console port',
+    'settings.webBindAddress': 'Web console bind address',
+    'settings.webBindAddressHint': 'Which IP the console is reachable on (0.0.0.0 = all interfaces)',
     'settings.savePorts': 'Save Ports',
     'settings.cacheMgmt': 'Cache Management',
     'settings.cacheInfo': '{entries} entries · {hits} hits · {rate}% hit rate',
@@ -678,11 +926,39 @@ const I18N = {
     'login.passwordPlaceholder': '请输入管理密码',
     'login.signIn': '登 录',
     'login.signingIn': '登录中...',
+    'setup.stepPassword': '管理员密码',
+    'setup.stepService': '服务设置',
+    'setup.step1Subtitle': '首先请设置本控制台的管理员密码',
+    'setup.step2Subtitle': '接下来配置 DNS 与 Web 控制台的监听地址与端口',
+    'setup.password': '管理员密码',
+    'setup.passwordPlaceholder': '至少 6 位',
+    'setup.passwordConfirm': '确认密码',
+    'setup.passwordMin': '密码至少 6 位',
+    'setup.dnsPort': 'DNS 端口（UDP + TCP）',
+    'setup.bindAddress': 'DNS 监听地址',
+    'setup.bindAddressHint': '0.0.0.0 = 所有网卡；127.0.0.1 = 仅本机',
+    'setup.webBindAddress': 'Web 控制台绑定地址',
+    'setup.webBindAddressHint': 'Web 控制台在哪个 IP 上可访问（0.0.0.0 = 所有网卡）',
+    'setup.checkAvailability': '检测 DNS 可用性',
+    'setup.checking': '检测中...',
+    'setup.available': '{addr}:{port} 可用',
+    'setup.unavailable': '{addr}:{port} 已被占用（{error}）',
+    'setup.suggestLoopback': ' — 127.0.0.1:{port} 可用，建议切换',
+    'setup.next': '下一步',
+    'setup.back': '上一步',
+    'setup.finish': '完成',
+    'setup.saving': '应用中...',
+    'setup.passwordMismatch': '两次输入的密码不一致',
     'login.sessionExpired': '会话已过期，请重新登录',
     'nav.dashboard': '仪表盘',
     'nav.rules': '解析规则',
+    'nav.system': '系统日志',
     'nav.settings': '设置',
     'nav.signOut': '退出登录',
+    'nav.quit': '退出',
+    'app.exitedTitle': 'Kaven DNS 已退出',
+    'app.exitedSub': 'DNS 服务已停止，现在可以关闭此窗口。',
+    'toast.quitConfirm': '退出 Kaven DNS？DNS 服务将停止。',
     'stats.total': '总查询数',
     'stats.fixed': '规则命中',
     'stats.fixedSub': '固定应答',
@@ -717,6 +993,13 @@ const I18N = {
     'log.filterDomain': '按域名过滤',
     'log.allSources': '全部来源',
     'log.autoRefresh': '自动刷新',
+    'syslog.auditTitle': '操作日志',
+    'syslog.consoleTitle': 'Console 输出',
+    'syslog.type': '类型',
+    'syslog.message': '内容',
+    'syslog.emptyEvents': '暂无操作记录',
+    'syslog.emptyConsole': '暂无 console 输出',
+    'syslog.refresh': '刷新',
     'log.empty': '暂无查询记录',
     'log.time': '时间',
     'log.client': '客户端',
@@ -810,6 +1093,8 @@ const I18N = {
     'settings.adjustedTo': '已调整为 {value}（原值超出允许范围）',
     'toast.adjusted': '部分数值已调整为允许范围，详见字段下方提示',
     'settings.webPort': 'Web 管理端口',
+    'settings.webBindAddress': 'Web 控制台绑定地址',
+    'settings.webBindAddressHint': 'Web 控制台在哪个 IP 上可访问（0.0.0.0 = 所有网卡）',
     'settings.savePorts': '保存端口',
     'settings.cacheMgmt': '缓存管理',
     'settings.cacheInfo': '{entries} 条 · 命中 {hits} 次 · 命中率 {rate}%',
@@ -849,12 +1134,18 @@ createApp({
     return {
       locale,
       authed: false,
+      needsSetup: false,
+      setupForm: { password: '', passwordConfirm: '', dnsPort: 53, bindAddress: '0.0.0.0', webBindAddress: '0.0.0.0' },
+      setupError: '', setupLoading: false, setupStep: 1,
+      checkingDns: false, dnsCheck: null, localIPs: [],
       token: localStorage.getItem('kaven_dns_token') || '',
       loginPassword: '', loginError: '', loginLoading: false,
       // The active tab lives in the URL hash (#/dashboard, #/rules, #/settings)
       tab: tabFromHash(),
       stats: {}, cacheInfo: {}, systemInfo: {}, dnsStatus: null,
+      exited: false,
       logs: [],
+      syslog: { console: [], events: [] },
       logFilter: { domain: '', source: '' },
       autoRefresh: true,
       rules: [],
@@ -864,7 +1155,7 @@ createApp({
       settings: {
         upstreams: [], forwardTimeoutMs: 3000, cacheMaxEntries: 10000,
         ttlMin: 10, ttlMax: 3600, logCapacity: 1000, dnsPort: 53, webPort: 8080,
-        bindAddress: '0.0.0.0', sessionTtlHours: 24,
+        bindAddress: '0.0.0.0', webBindAddress: '0.0.0.0', sessionTtlHours: 24,
       },
       savingSettings: false, savingPw: false,
       // Per-field feedback after a save: clamped values (orange) and a DNS
@@ -912,10 +1203,27 @@ createApp({
         localStorage.removeItem('kaven_dns_token');
       }
     }
+    // First-run detection: when no admin password has been set yet, show the
+    // setup wizard instead of the login form.
+    try {
+      const st = await this.api('/api/setup/status');
+      this.needsSetup = Boolean(st.needsSetup);
+      if (this.needsSetup) {
+        this.localIPs = st.localIPs || [];
+        this.setupForm.dnsPort = 53;
+        this.setupForm.bindAddress = '0.0.0.0';
+        this.setupForm.webBindAddress = '0.0.0.0';
+        // Show the availability of the default 0.0.0.0:53 right away.
+        this.checkDnsAvailability();
+      }
+    } catch (_) { /* ignore */ }
     setInterval(() => {
-      if (this.authed && this.tab === 'dashboard' && this.autoRefresh && !document.hidden) {
-        this.refreshStats();
-        this.refreshLogs();
+      if (this.authed && this.autoRefresh && !document.hidden) {
+        if (this.tab === 'dashboard') {
+          this.refreshStats();
+          this.refreshLogs();
+        }
+        if (this.tab === 'system') this.loadSystemLog();
       }
     }, 2000);
   },
@@ -982,15 +1290,100 @@ createApp({
         this.loginLoading = false;
       }
     },
+    setupNext() {
+      this.setupError = '';
+      if (this.setupForm.password.length < 6) {
+        this.setupError = this.t('setup.passwordMin');
+        return;
+      }
+      if (this.setupForm.password !== this.setupForm.passwordConfirm) {
+        this.setupError = this.t('setup.passwordMismatch');
+        return;
+      }
+      this.setupStep = 2;
+      this.checkDnsAvailability();
+    },
+    setupBack() {
+      this.setupError = '';
+      this.setupStep = 1;
+    },
+    async setup() {
+      this.setupLoading = true;
+      this.setupError = '';
+      try {
+        const f = this.setupForm;
+        if (f.password !== f.passwordConfirm)
+          throw new Error(this.t('setup.passwordMismatch'));
+        const data = await this.api('/api/setup', {
+          method: 'POST',
+          body: {
+            password: f.password,
+            dnsPort: f.dnsPort,
+            bindAddress: f.bindAddress,
+            webBindAddress: f.webBindAddress,
+          },
+        });
+        this.needsSetup = false;
+        if (data.dns && !data.dns.applied)
+          this.showToast(this.t('toast.dnsPortFailed', {
+            addr: data.dns.address || this.setupForm.bindAddress,
+            port: this.setupForm.dnsPort,
+            error: data.dns.error || '?',
+          }), 'error');
+        if (data.newWebUrl) {
+          // The console rebound to a different address/port; follow it.
+          this.showToast(this.t('toast.webMoved', { port: new URL(data.newWebUrl).port }));
+          setTimeout(() => {
+            location.replace(`${data.newWebUrl}${location.pathname}${location.hash}`);
+          }, 2000);
+        } else {
+          // Auto sign-in with the password just set
+          this.loginPassword = f.password;
+          await this.login();
+        }
+      } catch (e) {
+        this.setupError = e.message;
+      } finally {
+        this.setupLoading = false;
+      }
+    },
+    async checkDnsAvailability() {
+      this.checkingDns = true;
+      this.dnsCheck = null;
+      try {
+        const c = await this.api('/api/setup/check', {
+          method: 'POST',
+          body: { dnsPort: this.setupForm.dnsPort, bindAddress: this.setupForm.bindAddress },
+        });
+        if (!c.available) {
+          const parts = [];
+          if (c.udp && c.udp !== 'ok') parts.push('UDP ' + c.udp);
+          if (c.tcp && c.tcp !== 'ok') parts.push('TCP ' + c.tcp);
+          c.error = parts.join(', ') || '?';
+        }
+        this.dnsCheck = c;
+      } catch (e) {
+        this.dnsCheck = { available: false, address: this.setupForm.bindAddress || '0.0.0.0', port: this.setupForm.dnsPort, error: e.message };
+      } finally {
+        this.checkingDns = false;
+      }
+    },
     async logout() {
       try { await this.api('/api/auth/logout', { method: 'POST' }); } catch (_) { /* ignore */ }
       this.authed = false;
       this.token = '';
       localStorage.removeItem('kaven_dns_token');
     },
+    // Stop the whole program (DNS + web server)
+    quitApp() {
+      this.ask(this.t('toast.quitConfirm'), async () => {
+        try { await this.api('/api/shutdown', { method: 'POST' }); } catch (_) { /* server already exiting */ }
+        this.exited = true;
+      }, true);
+    },
     async enterApp() {
       this.authed = true;
-      await Promise.allSettled([this.refreshStats(), this.refreshLogs(), this.loadRules(), this.loadConfig()]);
+      await Promise.allSettled([this.refreshStats(), this.refreshLogs(), this.loadRules(), this.loadConfig(), this.loadSystemLog()]);
     },
     async refreshStats() {
       try {
@@ -1008,6 +1401,12 @@ createApp({
         if (this.logFilter.source) params.set('source', this.logFilter.source);
         const data = await this.api('/api/logs?' + params.toString());
         this.logs = data.logs;
+      } catch (_) { /* silent polling failure */ }
+    },
+    async loadSystemLog() {
+      try {
+        const data = await this.api('/api/syslog?limit=500');
+        this.syslog = data;
       } catch (_) { /* silent polling failure */ }
     },
     async loadRules() {
@@ -1166,8 +1565,10 @@ createApp({
           ttlMin: c.ttlMin, ttlMax: c.ttlMax,
           logCapacity: c.logCapacity,
           dnsPort: c.dnsPort, webPort: c.webPort, bindAddress: c.bindAddress || '0.0.0.0',
+          webBindAddress: c.webBindAddress || '0.0.0.0',
           sessionTtlHours: c.sessionTtlHours,
         };
+        this.localIPs = data.localIPs || [];
         this.fieldAdjusted = {};
         this.dnsNotApplied = false; this.dnsNotAppliedText = '';
       } catch (e) {
@@ -1184,7 +1585,8 @@ createApp({
           ttlMin: this.settings.ttlMin, ttlMax: this.settings.ttlMax,
           logCapacity: this.settings.logCapacity,
           dnsPort: this.settings.dnsPort, webPort: this.settings.webPort,
-          bindAddress: this.settings.bindAddress, sessionTtlHours: this.settings.sessionTtlHours,
+          bindAddress: this.settings.bindAddress,
+          webBindAddress: this.settings.webBindAddress, sessionTtlHours: this.settings.sessionTtlHours,
         };
         const data = await this.api('/api/config', { method: 'PUT', body });
         // Sync values the server clamped to valid ranges and flag the fields
@@ -1197,14 +1599,14 @@ createApp({
         this.dnsNotAppliedText = this.dnsNotApplied
           ? this.t('settings.dnsNotApplied', { error: data.dns.error })
           : '';
-        if (data.newWebPort) {
+        if (data.newWebUrl) {
           // The server moves the console after this response flushes; give the
           // toast a moment, then follow it to the new origin. The auth token
           // lives in localStorage, which is per-origin, so a re-login may be
           // needed after the jump.
-          this.showToast(this.t('toast.webMoved', { port: data.newWebPort }));
+          this.showToast(this.t('toast.webMoved', { port: new URL(data.newWebUrl).port }));
           setTimeout(() => {
-            location.replace(`${location.protocol}//${location.hostname}:${data.newWebPort}${location.pathname}${location.hash}`);
+            location.replace(`${data.newWebUrl}${location.pathname}${location.hash}`);
           }, 2000);
         } else if (this.dnsNotApplied) {
           this.showToast(this.t('toast.dnsPortFailed', { addr: this.settings.bindAddress || '0.0.0.0', port: this.settings.dnsPort, error: data.dns.error }), 'error');

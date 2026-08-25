@@ -13,6 +13,9 @@ const MESSAGES = {
     'auth.too_many_attempts': 'Too many attempts; retry in {s} seconds',
     'auth.not_signed_in': 'Not signed in or session expired',
 
+    'setup.password_min': 'Password must be at least 6 characters',
+    'setup.already_done': 'Setup has already been completed',
+
     'rules.domain_line_invalid':
       'Invalid domain "{domain}" (wildcards like *.example.com are supported)',
     'rules.domains_required': 'At least one domain is required',
@@ -51,6 +54,9 @@ const MESSAGES = {
     'auth.incorrect_password': '密码错误',
     'auth.too_many_attempts': '尝试过于频繁，请 {s} 秒后重试',
     'auth.not_signed_in': '未登录或会话已过期',
+
+    'setup.password_min': '密码至少 6 位',
+    'setup.already_done': '已完成初始化设置',
 
     'rules.domain_line_invalid':
       '域名 {domain} 格式不正确（支持 *.example.com 通配符）',

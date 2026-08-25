@@ -5,7 +5,12 @@ const path = require('path');
 const crypto = require('crypto');
 const net = require('net');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+// Data directory resolution:
+//  1. KAVEN_DATA_DIR environment variable (Docker volumes, custom layouts)
+//  2. <repo>/data otherwise
+const DATA_DIR = process.env.KAVEN_DATA_DIR
+  ? path.resolve(process.env.KAVEN_DATA_DIR)
+  : path.join(__dirname, '..', 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 
 const DEFAULTS = {
@@ -13,6 +18,8 @@ const DEFAULTS = {
   webPort: 8080,
   // Local address the DNS servers bind to; 0.0.0.0 = every interface
   bindAddress: '0.0.0.0',
+  // Local address the Web console binds to; 0.0.0.0 = every interface
+  webBindAddress: '0.0.0.0',
   // Default upstream DNS servers (UDP); queries are raced, fastest response wins
   upstreams: ['223.5.5.5', '119.29.29.29', '114.114.114.114'],
   // Timeout for a single upstream forward (ms)
@@ -36,13 +43,6 @@ function hashPassword(password) {
     .createHash('sha256')
     .update(`kaven-dns:${password}`)
     .digest('hex');
-}
-
-function generatePassword() {
-  // Exclude easily confused characters (0/O/1/l/I)
-  const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  const bytes = crypto.randomBytes(10);
-  return Array.from(bytes, b => alphabet[b % alphabet.length]).join('');
 }
 
 function atomicWriteJson(file, data) {
@@ -77,6 +77,8 @@ function sanitize(config) {
   config.webPort = clampInt(config.webPort, 1, 65535, DEFAULTS.webPort);
   const addr = String(config.bindAddress || '').trim();
   config.bindAddress = net.isIP(addr) ? addr : DEFAULTS.bindAddress;
+  const webAddr = String(config.webBindAddress || '').trim();
+  config.webBindAddress = net.isIP(webAddr) ? webAddr : DEFAULTS.webBindAddress;
   config.forwardTimeoutMs = clampInt(config.forwardTimeoutMs, 500, 30000, DEFAULTS.forwardTimeoutMs);
   config.cacheMaxEntries = clampInt(config.cacheMaxEntries, 100, 1000000, DEFAULTS.cacheMaxEntries);
   config.ttlMin = clampInt(config.ttlMin, 1, 3600, DEFAULTS.ttlMin);
@@ -103,15 +105,14 @@ function loadConfig() {
       console.error(`[config] Failed to read ${CONFIG_FILE}, using defaults: ${e.message}`);
     }
   }
-  let firstRun = false;
-  if (!config.passwordHash) {
-    const password = generatePassword();
-    config.passwordHash = hashPassword(password);
-    firstRun = true;
+  // First run = no admin password set yet. Nothing is generated here; the Web
+  // console shows a setup screen where the user picks the password, ports and
+  // bind address (persisted by the POST /api/setup endpoint).
+  const firstRun = !config.passwordHash;
+  if (firstRun) {
     console.log('==============================================================');
-    console.log('  First run: generated a password for the Web console:');
-    console.log(`      ${password}`);
-    console.log('  Keep it safe; you can change it later on the Settings page.');
+    console.log('  First run: open the Web console to complete the setup');
+    console.log('  (admin password, DNS/Web ports, bind address).');
     console.log('==============================================================');
   }
   if (process.env.KAVEN_DNS_PORT) {
