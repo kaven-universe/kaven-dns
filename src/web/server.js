@@ -327,6 +327,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
   app.get('/api/stats', (req, res) => {
     res.json({
       stats: logs.getStats(),
+      analytics: logs.getAnalytics(),
       cache: cache.info(),
       system: systemMonitor.snapshot(),
       dns: getDnsStatus ? getDnsStatus() : null,

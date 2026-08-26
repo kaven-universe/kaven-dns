@@ -121,12 +121,102 @@ main { margin: 20px 0 40px; padding: 0 clamp(16px, 2.5vw, 48px) 40px; }
 .card { background: var(--card); border-radius: 10px; border: 1px solid var(--border); padding: 18px 20px; margin-bottom: 16px; }
 .card h3 { margin: 0 0 14px; font-size: 15px; }
 
-/* Stat cards: as many per row as fit (min 215px), filling the full width */
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 12px; margin-bottom: 16px; }
+/* Server resources */
+.stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
 .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; }
 .stat .label { color: var(--muted); font-size: 12px; }
 .stat .value { font-size: 22px; font-weight: 700; margin-top: 2px; }
 .stat .sub { font-size: 12px; color: var(--muted); }
+
+/* Query overview: one visual unit instead of a wall of equal-weight cards */
+.query-overview { padding: 0; overflow: hidden; }
+.query-overview-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 13px 18px; border-bottom: 1px solid var(--border);
+}
+.query-overview-head h3 { margin: 0; }
+.query-overview-head .sub { color: var(--muted); font-size: 12px; }
+.query-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(470px, 1.2fr) minmax(280px, .8fr) minmax(230px, .65fr);
+}
+.query-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.query-kpi { min-width: 0; padding: 18px; }
+.query-kpi + .query-kpi { border-left: 1px solid var(--border); }
+.query-kpi .label { color: var(--muted); font-size: 12px; }
+.query-kpi .value { margin-top: 3px; font-size: 27px; line-height: 1.25; font-weight: 700; font-variant-numeric: tabular-nums; }
+.query-kpi.primary .value { color: var(--primary); }
+.query-kpi .sub { margin-top: 3px; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.query-detail { min-width: 0; padding: 16px 18px; border-left: 1px solid var(--border); }
+.query-detail-title { margin-bottom: 13px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.source-bar { display: flex; height: 7px; overflow: hidden; border-radius: 4px; background: #eef2f7; }
+.source-bar span { display: block; height: 100%; }
+.source-fixed { background: var(--green); }
+.source-cache { background: var(--purple); }
+.source-forward { background: var(--orange); }
+.source-legend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.source-item { min-width: 0; }
+.source-item .name { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.source-item .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.source-item .count { display: block; margin-top: 1px; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cache-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.cache-summary strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.cache-summary span { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.capacity-track { height: 5px; margin: 7px 0 13px; overflow: hidden; border-radius: 3px; background: #eef2f7; }
+.capacity-track span { display: block; height: 100%; border-radius: inherit; background: var(--cyan); }
+.response-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.response-item { padding-top: 9px; border-top: 1px solid #eef2f7; }
+.response-item .name { color: var(--muted); font-size: 10px; }
+.response-item .count { display: block; margin-top: 1px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.response-item.error .count { color: var(--red); }
+
+/* In-memory analytics */
+.analysis-grid {
+  display: grid; grid-template-columns: minmax(420px, 1.5fr) repeat(2, minmax(240px, .75fr));
+  gap: 16px; margin-bottom: 16px; align-items: stretch;
+}
+.analysis-grid > .card { margin-bottom: 0; min-width: 0; }
+.analysis-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.analysis-head h3 { margin: 0; }
+.analysis-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.segmented { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: #f8fafc; flex: none; }
+.segmented button { padding: 3px 9px; border-radius: 4px; background: transparent; color: var(--muted); font-size: 12px; }
+.segmented button.on { background: #fff; color: var(--primary); box-shadow: 0 1px 3px rgba(15,23,42,.12); font-weight: 600; }
+.chart-wrap { display: grid; grid-template-columns: 38px minmax(0, 1fr); height: 232px; min-height: 232px; }
+.chart-y-axis { height: 196px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; padding: 0 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1; }
+.chart-main { min-width: 0; }
+.chart-plot { position: relative; height: 196px; }
+.trend-chart { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.chart-grid { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-area { fill: rgba(37,99,235,.09); }
+.chart-line { fill: none; stroke: var(--primary); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.chart-point { position: absolute; width: 7px; height: 7px; border: 2px solid var(--primary); border-radius: 50%; background: #fff; transform: translate(-50%, -50%); }
+.chart-x-axis { position: relative; height: 28px; color: var(--muted); font-size: 11px; }
+.chart-x-axis span { position: absolute; top: 7px; transform: translateX(-50%); white-space: nowrap; }
+.chart-x-axis span:first-child { transform: none; }
+.chart-x-axis span:last-child { transform: translateX(-100%); }
+.metric-latency .chart-area { fill: rgba(8,145,178,.09); }
+.metric-latency .chart-line { stroke: var(--cyan); }
+.metric-latency .chart-point { border-color: var(--cyan); }
+.metric-failures .chart-area { fill: rgba(220,38,38,.08); }
+.metric-failures .chart-line { stroke: var(--red); }
+.metric-failures .chart-point { border-color: var(--red); }
+.analysis-note { color: var(--muted); font-size: 11px; margin-top: 8px; }
+.analysis-empty { min-height: 232px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.ranked-list { display: flex; flex-direction: column; }
+.rank-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 9px; align-items: center; min-height: 43px; padding: 6px 0; }
+.rank-row + .rank-row { border-top: 1px solid #eef2f7; }
+.rank-index { color: var(--muted); font: 600 11px/22px Consolas, monospace; text-align: center; width: 22px; height: 22px; background: #f1f5f9; border-radius: 4px; }
+.rank-body { min-width: 0; }
+.rank-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; }
+.rank-meta { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-value { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+.rank-track { height: 3px; border-radius: 2px; background: #eef2f7; margin-top: 4px; overflow: hidden; }
+.rank-track span { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
+.client-row .rank-track span { background: var(--green); }
+.client-index { position: relative; background: rgba(22,163,74,.1); color: var(--green); }
+.client-index::after { content: ""; position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--green); right: 2px; top: 2px; }
+.count-badge { min-width: 24px; padding: 1px 6px; border-radius: 10px; background: #eef2f7; color: var(--muted); text-align: center; font-size: 11px; font-weight: 600; }
 
 /* Tables */
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -214,7 +304,42 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 .toast.success { background: var(--green); }
 .toast.error { background: var(--red); }
 .exited-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 999; }
+@media (max-width: 1200px) {
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .query-overview-grid { grid-template-columns: 1fr 1fr; }
+  .query-kpis { grid-column: 1 / -1; border-bottom: 1px solid var(--border); }
+  .query-detail:first-of-type { border-left: 0; }
+  .analysis-grid { grid-template-columns: 1fr 1fr; }
+  .trend-card { grid-column: 1 / -1; }
+}
 @media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
+@media (max-width: 700px) {
+  header {
+    display: grid; grid-template-columns: minmax(72px, 1fr) auto auto auto;
+    height: auto; min-height: 54px; padding: 8px 12px; gap: 7px;
+  }
+  header .brand { margin-right: 0; min-width: 0; font-size: 14px; white-space: nowrap; }
+  header nav { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; width: 100%; }
+  header nav a { padding: 5px 3px; text-align: center; white-space: nowrap; font-size: 12px; }
+  header > .lang-switch { margin-right: 0 !important; }
+  header > .lang-switch button { padding: 3px 6px; }
+  header > .btn { margin-right: 0 !important; padding: 3px 7px; font-size: 11px; white-space: nowrap; }
+  .stat-grid { grid-template-columns: 1fr; }
+  .query-overview-head { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .query-overview-grid { grid-template-columns: 1fr; }
+  .query-kpis { grid-column: auto; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .query-kpi { padding: 13px 10px; }
+  .query-kpi + .query-kpi { border-left: 1px solid var(--border); border-top: 0; }
+  .query-kpi .label { display: flex; align-items: flex-end; min-height: 32px; line-height: 1.25; }
+  .query-kpi .value { font-size: 22px; white-space: nowrap; }
+  .query-kpi .sub { min-height: 26px; white-space: normal; font-size: 10px; line-height: 1.3; }
+  .query-detail { padding: 14px 16px; border-left: 0; border-top: 1px solid var(--border); }
+  .analysis-grid { grid-template-columns: 1fr; }
+  .trend-card { grid-column: auto; }
+  .analysis-head { flex-direction: column; }
+  .segmented { width: 100%; }
+  .segmented button { flex: 1; }
+}
 </style>
 </head>
 <body>
@@ -352,22 +477,161 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
       <!-- Dashboard -->
       <section v-show="tab==='dashboard'">
         <!-- Server & resources -->
-        <div class="stat-grid">
+        <div class="stat-grid system-grid">
           <div class="stat"><div class="label">{{ t('stats.uptimeCard') }}</div><div class="value">{{ fmtDuration(stats.uptimeMs) }}</div><div class="sub">{{ t('stats.startedAt', {time: fmtDateTime(stats.startedAt)}) }}</div></div>
           <div class="stat"><div class="label">{{ t('stats.cpu') }}</div><div class="value">{{ systemInfo.processCpu ?? 0 }}%</div><div class="sub">{{ t('stats.processCpu', {n: systemInfo.processCpu ?? 0}) }} · {{ t('stats.systemCpu', {n: systemInfo.systemCpu ?? 0}) }} · {{ t('stats.cores', {n: systemInfo.cores ?? 0}) }}</div></div>
           <div class="stat"><div class="label">{{ t('stats.memory') }}</div><div class="value">{{ t('stats.processMem', {n: systemInfo.processRSSMB ?? 0}) }}</div><div class="sub">{{ t('stats.systemMem', {used: ((systemInfo.usedMemMB ?? 0)/1024).toFixed(1), total: ((systemInfo.totalMemMB ?? 0)/1024).toFixed(1)}) }}</div></div>
           <div class="stat"><div class="label">{{ t('stats.server') }}</div><div class="value" style="font-size:18px;word-break:break-all">{{ systemInfo.hostname || '-' }}</div><div class="sub" :title="systemInfo.release">{{ systemInfo.platform }} · {{ systemInfo.arch }} · Node {{ (systemInfo.nodeVersion || '').replace('v','') }} · <span :title="dnsTitle" :style="{color: dnsStatus && dnsStatus.listening ? 'var(--green)' : 'var(--red)', fontWeight:600}">DNS {{ dnsStatus ? (dnsStatus.address || '0.0.0.0') + ':' + dnsStatus.port : '-' }} {{ dnsStatus && dnsStatus.listening ? '●' : '✕' }}</span></div></div>
         </div>
 
-        <div class="stat-grid">
-          <div class="stat"><div class="label">{{ t('stats.total') }}</div><div class="value">{{ stats.total ?? 0 }}</div><div class="sub">{{ t('stats.allQueries') }}</div></div>
-          <div class="stat"><div class="label">{{ t('stats.fixed') }}</div><div class="value">{{ stats.fixed ?? 0 }}</div><div class="sub">{{ t('stats.fixedSub') }}</div></div>
-          <div class="stat"><div class="label">{{ t('stats.cache') }}</div><div class="value">{{ stats.cache ?? 0 }}</div><div class="sub">{{ t('stats.hitRate', {n: cacheInfo.hitRate ?? 0}) }}</div></div>
-          <div class="stat"><div class="label">{{ t('stats.forward') }}</div><div class="value">{{ stats.forward ?? 0 }}</div><div class="sub">{{ t('stats.avgMs', {n: stats.forwardAvgMs ?? 0}) }}</div></div>
-          <div class="stat"><div class="label">{{ t('stats.cacheEntries') }}</div><div class="value">{{ cacheInfo.size ?? 0 }}</div><div class="sub">{{ t('stats.limit', {n: cacheInfo.maxEntries ?? 0}) }}</div></div>
-          <div class="stat"><div class="label">{{ t('stats.avgLatency') }}</div><div class="value">{{ stats.avgLatencyMs ?? 0 }} ms</div><div class="sub">{{ t('stats.allQueries') }}</div></div>
-          <div class="stat"><div class="label">SERVFAIL</div><div class="value" :style="{color: (stats.servfail??0) > 0 ? 'var(--red)' : ''}">{{ stats.servfail ?? 0 }}</div><div class="sub">{{ t('stats.failedResolutions') }}</div></div>
-          <div class="stat"><div class="label">NXDOMAIN</div><div class="value">{{ stats.nxdomain ?? 0 }}</div><div class="sub">{{ t('stats.nonExistent') }}</div></div>
+        <div class="card query-overview">
+          <div class="query-overview-head">
+            <h3>{{ t('stats.queryOverview') }}</h3>
+            <span class="sub">{{ t('stats.sinceStart') }}</span>
+          </div>
+          <div class="query-overview-grid">
+            <div class="query-kpis">
+              <div class="query-kpi primary">
+                <div class="label">{{ t('stats.total') }}</div>
+                <div class="value">{{ stats.total ?? 0 }}</div>
+                <div class="sub">{{ t('stats.allQueries') }}</div>
+              </div>
+              <div class="query-kpi">
+                <div class="label">{{ t('stats.cacheEfficiency') }}</div>
+                <div class="value">{{ cacheInfo.hitRate ?? 0 }}%</div>
+                <div class="sub">{{ t('stats.cacheHits', {n: stats.cache ?? 0}) }}</div>
+              </div>
+              <div class="query-kpi">
+                <div class="label">{{ t('stats.avgLatency') }}</div>
+                <div class="value">{{ stats.avgLatencyMs ?? 0 }} ms</div>
+                <div class="sub">{{ t('stats.forwardAvg', {n: stats.forwardAvgMs ?? 0}) }}</div>
+              </div>
+            </div>
+
+            <div class="query-detail">
+              <div class="query-detail-title">{{ t('stats.sourceDistribution') }}</div>
+              <div class="source-bar" :title="t('stats.sourceDistribution')">
+                <span class="source-fixed" :style="{width: percentWidth(stats.fixed, stats.total)}"></span>
+                <span class="source-cache" :style="{width: percentWidth(stats.cache, stats.total)}"></span>
+                <span class="source-forward" :style="{width: percentWidth(stats.forward, stats.total)}"></span>
+              </div>
+              <div class="source-legend">
+                <div class="source-item">
+                  <span class="name"><span class="dot source-fixed"></span>{{ t('source.fixed') }}</span>
+                  <strong class="count">{{ stats.fixed ?? 0 }}</strong>
+                </div>
+                <div class="source-item">
+                  <span class="name"><span class="dot source-cache"></span>{{ t('source.cache') }}</span>
+                  <strong class="count">{{ stats.cache ?? 0 }}</strong>
+                </div>
+                <div class="source-item">
+                  <span class="name"><span class="dot source-forward"></span>{{ t('source.forward') }}</span>
+                  <strong class="count">{{ stats.forward ?? 0 }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="query-detail">
+              <div class="query-detail-title">{{ t('stats.cacheAndResponses') }}</div>
+              <div class="cache-summary">
+                <strong>{{ cacheInfo.size ?? 0 }}</strong>
+                <span>{{ t('stats.cacheCapacity', {n: cacheInfo.maxEntries ?? 0}) }}</span>
+              </div>
+              <div class="capacity-track"><span :style="{width: percentWidth(cacheInfo.size, cacheInfo.maxEntries)}"></span></div>
+              <div class="response-summary">
+                <div class="response-item" :class="{error: (stats.servfail ?? 0) > 0}">
+                  <span class="name">SERVFAIL</span>
+                  <strong class="count">{{ stats.servfail ?? 0 }}</strong>
+                </div>
+                <div class="response-item">
+                  <span class="name">NXDOMAIN</span>
+                  <strong class="count">{{ stats.nxdomain ?? 0 }}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="analysis-grid">
+          <div class="card trend-card">
+            <div class="analysis-head">
+              <div>
+                <h3>{{ t('analytics.trendTitle') }}</h3>
+                <div class="analysis-sub">{{ t('analytics.window', {n: analytics.trend.windowMinutes, bucket: analytics.trend.bucketMinutes}) }}</div>
+              </div>
+              <div class="segmented" role="group" :aria-label="t('analytics.metric')">
+                <button :class="{on: trendMetric === 'total'}" @click="trendMetric = 'total'">{{ t('analytics.queries') }}</button>
+                <button :class="{on: trendMetric === 'latency'}" @click="trendMetric = 'latency'">{{ t('analytics.latency') }}</button>
+                <button :class="{on: trendMetric === 'failures'}" @click="trendMetric = 'failures'">{{ t('analytics.failures') }}</button>
+              </div>
+            </div>
+            <div v-if="analytics.sampledQueries" class="chart-wrap">
+              <div class="chart-y-axis">
+                <span v-for="tick in trendChart.ticks" :key="tick.value">{{ tick.label }}</span>
+              </div>
+              <div class="chart-main" :class="'metric-' + trendMetric" role="img" :aria-label="t('analytics.chartAria', {metric: trendMetricText, n: analytics.trend.windowMinutes})">
+                <div class="chart-plot">
+                  <svg class="trend-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                    <line v-for="tick in trendChart.ticks" :key="tick.value" class="chart-grid" x1="0" x2="100" :y1="tick.y" :y2="tick.y"></line>
+                    <path class="chart-area" :d="trendChart.areaPath"></path>
+                    <path class="chart-line" :d="trendChart.linePath"></path>
+                  </svg>
+                  <span v-for="point in trendChart.points" :key="point.t" class="chart-point" :style="{left: point.x + '%', top: point.y + '%'}" :title="fmtTrendTime(point.t) + ' · ' + point.displayValue"></span>
+                </div>
+                <div class="chart-x-axis">
+                  <template v-for="point in trendChart.points" :key="point.t">
+                    <span v-if="point.showLabel" :style="{left: point.x + '%'}">{{ fmtTrendTime(point.t) }}</span>
+                  </template>
+                </div>
+              </div>
+            </div>
+            <div v-else class="analysis-empty">{{ t('analytics.empty') }}</div>
+            <div class="analysis-note">{{ t('analytics.memoryNote', {n: analytics.sampledQueries}) }}</div>
+          </div>
+
+          <div class="card">
+            <div class="analysis-head">
+              <div>
+                <h3>{{ t('analytics.topDomains') }}</h3>
+                <div class="analysis-sub">{{ t('analytics.lastMinutes', {n: analytics.trend.windowMinutes}) }}</div>
+              </div>
+              <span class="count-badge">{{ analytics.topDomains.length }}</span>
+            </div>
+            <div v-if="!analytics.topDomains.length" class="empty">{{ t('analytics.empty') }}</div>
+            <div v-else class="ranked-list">
+              <div v-for="(item, index) in analytics.topDomains" :key="item.domain" class="rank-row">
+                <span class="rank-index">{{ index + 1 }}</span>
+                <div class="rank-body">
+                  <span class="rank-name" :title="item.domain">{{ item.domain }}</span>
+                  <div class="rank-meta">{{ item.failures ? t('analytics.failureCount', {n: item.failures}) : t('analytics.allSuccessful') }}</div>
+                  <div class="rank-track"><span :style="{width: rankWidth(item.count, analytics.topDomains)}"></span></div>
+                </div>
+                <span class="rank-value">{{ item.count }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="analysis-head">
+              <div>
+                <h3>{{ t('analytics.activeClients') }}</h3>
+                <div class="analysis-sub">{{ t('analytics.activeWindow', {n: analytics.activeMinutes}) }}</div>
+              </div>
+              <span class="count-badge">{{ analytics.activeClientCount }}</span>
+            </div>
+            <div v-if="!analytics.activeClients.length" class="empty">{{ t('analytics.noActiveClients') }}</div>
+            <div v-else class="ranked-list">
+              <div v-for="(item, index) in analytics.activeClients" :key="item.client" class="rank-row client-row">
+                <span class="rank-index client-index">{{ index + 1 }}</span>
+                <div class="rank-body">
+                  <span class="rank-name" :title="item.client">{{ item.client }}</span>
+                  <div class="rank-meta">{{ fmtAgo(item.lastSeen) }}<template v-if="item.failures"> · {{ t('analytics.failureCount', {n: item.failures}) }}</template></div>
+                  <div class="rank-track"><span :style="{width: rankWidth(item.count, analytics.activeClients)}"></span></div>
+                </div>
+                <span class="rank-value">{{ item.count }}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="card">
@@ -779,6 +1043,33 @@ const I18N = {
     'stats.processMem': 'Process {n} MB',
     'stats.systemMem': 'System {used} / {total} GB',
     'stats.server': 'Server',
+    'stats.queryOverview': 'Query Overview',
+    'stats.sinceStart': 'Since service start',
+    'stats.cacheEfficiency': 'Cache Hit Rate',
+    'stats.cacheHits': '{n} cache hits',
+    'stats.forwardAvg': 'Forward avg {n} ms',
+    'stats.sourceDistribution': 'Resolution Sources',
+    'stats.cacheAndResponses': 'Cache & Responses',
+    'stats.cacheCapacity': 'of {n} entries',
+    'analytics.trendTitle': 'Recent Query Trends',
+    'analytics.window': 'Last {n} min · {bucket} min buckets',
+    'analytics.lastMinutes': 'Last {n} min',
+    'analytics.metric': 'Trend metric',
+    'analytics.queries': 'Queries',
+    'analytics.latency': 'Avg latency',
+    'analytics.failures': 'Failures',
+    'analytics.topDomains': 'Top Domains',
+    'analytics.activeClients': 'Active Clients',
+    'analytics.activeWindow': 'Seen in the last {n} min',
+    'analytics.failureCount': '{n} failed',
+    'analytics.allSuccessful': 'All successful',
+    'analytics.empty': 'No query data in this window',
+    'analytics.noActiveClients': 'No active DNS clients',
+    'analytics.memoryNote': 'Based on {n} retained in-memory queries; resets when the service restarts.',
+    'analytics.chartAria': '{metric} over the last {n} minutes',
+    'analytics.justNow': 'just now',
+    'analytics.secondsAgo': '{n}s ago',
+    'analytics.minutesAgo': '{n}m ago',
     'test.title': 'Resolve Test',
     'test.placeholder': 'Enter a domain, e.g. example.com',
     'test.button': 'Test',
@@ -982,6 +1273,33 @@ const I18N = {
     'stats.processMem': '进程 {n} MB',
     'stats.systemMem': '系统 {used} / {total} GB',
     'stats.server': '服务器',
+    'stats.queryOverview': '查询概览',
+    'stats.sinceStart': '自服务启动以来',
+    'stats.cacheEfficiency': '缓存命中率',
+    'stats.cacheHits': '缓存命中 {n} 次',
+    'stats.forwardAvg': '转发平均 {n} ms',
+    'stats.sourceDistribution': '解析来源',
+    'stats.cacheAndResponses': '缓存与响应',
+    'stats.cacheCapacity': '上限 {n} 条',
+    'analytics.trendTitle': '近期查询趋势',
+    'analytics.window': '最近 {n} 分钟 · 每 {bucket} 分钟一组',
+    'analytics.lastMinutes': '最近 {n} 分钟',
+    'analytics.metric': '趋势指标',
+    'analytics.queries': '查询量',
+    'analytics.latency': '平均耗时',
+    'analytics.failures': '失败数',
+    'analytics.topDomains': '热门域名',
+    'analytics.activeClients': '活跃客户端',
+    'analytics.activeWindow': '最近 {n} 分钟有查询',
+    'analytics.failureCount': '失败 {n} 次',
+    'analytics.allSuccessful': '全部成功',
+    'analytics.empty': '该时间段暂无查询数据',
+    'analytics.noActiveClients': '暂无活跃 DNS 客户端',
+    'analytics.memoryNote': '基于内存中保留的 {n} 条查询，服务重启后重新统计。',
+    'analytics.chartAria': '最近 {n} 分钟的{metric}',
+    'analytics.justNow': '刚刚',
+    'analytics.secondsAgo': '{n} 秒前',
+    'analytics.minutesAgo': '{n} 分钟前',
     'test.title': '解析测试',
     'test.placeholder': '输入域名，如 example.com',
     'test.button': '测试',
@@ -1143,6 +1461,12 @@ createApp({
       // The active tab lives in the URL hash (#/dashboard, #/rules, #/settings)
       tab: tabFromHash(),
       stats: {}, cacheInfo: {}, systemInfo: {}, dnsStatus: null,
+      analytics: {
+        trend: { windowMinutes: 60, bucketMinutes: 5, buckets: [] },
+        topDomains: [], activeClients: [], activeClientCount: 0,
+        activeMinutes: 5, sampledQueries: 0, retainedQueries: 0,
+      },
+      trendMetric: 'total',
       exited: false,
       logs: [],
       syslog: { console: [], events: [] },
@@ -1181,6 +1505,53 @@ createApp({
       if (t === 'A') return this.t('modal.valuePlaceholderA');
       if (t === 'AAAA') return this.t('modal.valuePlaceholderAAAA');
       return this.t('modal.valuePlaceholderCname');
+    },
+    trendMetricText() {
+      return this.trendMetric === 'latency'
+        ? this.t('analytics.latency')
+        : this.trendMetric === 'failures'
+          ? this.t('analytics.failures')
+          : this.t('analytics.queries');
+    },
+    trendChart() {
+      const buckets = this.analytics.trend.buckets || [];
+      const key = this.trendMetric === 'latency' ? 'avgLatencyMs' : this.trendMetric;
+      const values = buckets.map(bucket => Number(bucket[key]) || 0);
+      const rawMax = Math.max(...values, 0);
+      const magnitude = rawMax > 0 ? 10 ** Math.floor(Math.log10(rawMax)) : 1;
+      const normalized = rawMax / magnitude;
+      const nice = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+      const max = nice * magnitude;
+      const top = 2, bottom = 2;
+      const plotHeight = 100 - top - bottom;
+      const baseline = top + plotHeight;
+      const points = buckets.map((bucket, index) => {
+        const value = values[index];
+        const x = buckets.length === 1 ? 0 : index * 100 / (buckets.length - 1);
+        const y = top + (max - value) / max * plotHeight;
+        return {
+          t: bucket.t,
+          value,
+          displayValue: this.trendMetric === 'latency' ? `${value} ms` : String(value),
+          x: +x.toFixed(2),
+          y: +y.toFixed(2),
+          showLabel: index % 3 === 0 || index === buckets.length - 1,
+        };
+      });
+      const linePath = points.length
+        ? 'M ' + points.map(point => `${point.x} ${point.y}`).join(' L ')
+        : '';
+      const areaPath = points.length
+        ? `M ${points[0].x} ${baseline} L ` + points.map(point => `${point.x} ${point.y}`).join(' L ') +
+          ` L ${points.at(-1).x} ${baseline} Z`
+        : '';
+      const formatTick = value => value >= 10 || Number.isInteger(value) ? String(value) : value.toFixed(1);
+      const ticks = [max, max / 2, 0].map(value => ({
+        value,
+        label: formatTick(value),
+        y: +(top + (max - value) / max * plotHeight).toFixed(2),
+      }));
+      return { points, linePath, areaPath, ticks };
     },
   },
   async mounted() {
@@ -1392,6 +1763,7 @@ createApp({
         this.cacheInfo = data.cache;
         this.systemInfo = data.system || {};
         this.dnsStatus = data.dns || null;
+        if (data.analytics) this.analytics = data.analytics;
       } catch (_) { /* silent polling failure */ }
     },
     async refreshLogs() {
@@ -1683,6 +2055,25 @@ createApp({
       const d = new Date(t);
       const p = n => String(n).padStart(2, '0');
       return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    },
+    fmtTrendTime(t) {
+      const d = new Date(t);
+      const p = n => String(n).padStart(2, '0');
+      return `${p(d.getHours())}:${p(d.getMinutes())}`;
+    },
+    fmtAgo(t) {
+      const seconds = Math.max(0, Math.floor((Date.now() - t) / 1000));
+      if (seconds < 10) return this.t('analytics.justNow');
+      if (seconds < 60) return this.t('analytics.secondsAgo', { n: seconds });
+      return this.t('analytics.minutesAgo', { n: Math.floor(seconds / 60) });
+    },
+    rankWidth(count, items) {
+      const max = Math.max(...items.map(item => item.count), 1);
+      return `${Math.max(6, count / max * 100).toFixed(1)}%`;
+    },
+    percentWidth(value, total) {
+      const percent = total > 0 ? Number(value || 0) / total * 100 : 0;
+      return `${Math.max(0, Math.min(100, percent)).toFixed(1)}%`;
     },
     fmtDuration(ms) {
       if (ms == null) return '-';

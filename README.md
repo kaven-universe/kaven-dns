@@ -13,7 +13,7 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 - **Upstream racing**: default upstreams are queried in parallel and the fastest successful response wins; TC-flagged answers are automatically retried over TCP
 - **Bilingual Web console** (Chinese / English, simple password authentication):
   - Language switcher on the login page and in the header; the preference is remembered and auto-detected from the browser on first visit
-  - Dashboard: query volume, rule/cache/forward hits, failures, average latency, cache hit rate, live query log (domain / source filters); server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version)
+  - Dashboard: query volume, rule/cache/forward hits, failures, average latency, cache hit rate, 60-minute query/latency/failure trends, top domains, active clients, and a live query log (domain / source filters); server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version). Analytics use the retained in-memory query window and reset on restart
   - Rules management: table + modal editor, enable toggle, remarks, import/export as JSON (merge by domains+type, or replace all)
   - Settings: upstream list, cache and log parameters, ports, password change, cache flush, resolve test
   - System Logs: operation/config-change audit trail plus the console output (what a hidden terminal would have shown), with a dark console viewer
