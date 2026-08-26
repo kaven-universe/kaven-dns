@@ -69,6 +69,16 @@ function probeBindable(address, port) {
   });
 }
 
+// A bindability probe cannot acquire an endpoint already held by our own DNS
+// listener. Treat it as available when restarting DNS would first release the
+// same endpoint. An IPv4 wildcard listener also owns every local IPv4 address.
+function heldByOwnDnsListener(status, address, port) {
+  if (!status || !status.listening || status.port !== port) return false;
+  const currentAddress = status.address || '0.0.0.0';
+  const requestedAddress = address || '0.0.0.0';
+  return currentAddress === requestedAddress || currentAddress === '0.0.0.0';
+}
+
 function createWebServer({ config, rulesStore, logs, cache, resolver, auth, syslog, getDnsStatus, restartDns, runtime }) {
   const app = express();
   const systemMonitor = createSystemMonitor();
@@ -123,16 +133,18 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
       return res.status(400).json({ error: t(req.lang, 'config.bind_invalid', { value: bindAddress }) });
 
     const addr = bindAddress || '0.0.0.0';
-    const result = await probeBindable(addr, dnsPort);
+    const cur = getDnsStatus ? getDnsStatus() : null;
+    const selfHoldsRequested = heldByOwnDnsListener(cur, addr, dnsPort);
+    const result = selfHoldsRequested
+      ? { available: true, udp: 'ok', tcp: 'ok', address: addr, port: dnsPort, self: true }
+      : await probeBindable(addr, dnsPort);
     // When busy, also probe 127.0.0.1 on the same port so the wizard can
     // suggest a local-only alternative. If OUR OWN DNS server already holds
     // the loopback port (the 0.0.0.0 -> 127.0.0.1 fallback), it is still
     // usable: completing setup restarts DNS onto the chosen address, which
     // closes the fallback listener first.
     if (!result.available && addr !== '127.0.0.1') {
-      const cur = getDnsStatus ? getDnsStatus() : null;
-      const selfHoldsLoopback = cur && cur.listening &&
-        cur.port === dnsPort && cur.address === '127.0.0.1';
+      const selfHoldsLoopback = heldByOwnDnsListener(cur, '127.0.0.1', dnsPort);
       let alt = null;
       if (selfHoldsLoopback) {
         alt = { available: true, address: '127.0.0.1', port: dnsPort, self: true };
@@ -575,4 +587,4 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
   return { listen, runtime };
 }
 
-module.exports = { createWebServer };
+module.exports = { createWebServer, heldByOwnDnsListener };
