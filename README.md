@@ -91,7 +91,7 @@ To build the image locally:
 docker build -t kaven-dns .
 ```
 
-The publishing workflow runs for pushes to `main`, version tags matching `v*`, and manual dispatches. Images receive branch/tag, commit SHA, current date-time, and `latest` tags as applicable.
+The publishing workflow runs on manual dispatch (Actions tab). Images receive branch/tag, commit SHA, current date-time, and `latest` tags as applicable.
 
 ## Rule Matching
 

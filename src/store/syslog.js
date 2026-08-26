@@ -3,10 +3,9 @@
 /**
  * System log: in-memory ring buffers for (a) console output and (b) audit
  * events (rule/config/operation changes). console.log/warn/error are wrapped
- * so output that a hidden GUI console would swallow is still visible from the
- * Web console; the packaged desktop build additionally tees it to
- * data/kaven-dns.log via setFileWriter(). Everything lives in memory,
- * matching the rest of the app (the query log / stats are in-memory too).
+ * so output that would otherwise only go to the terminal is also visible
+ * from the Web console. Everything lives in memory, matching the rest of the
+ * app (the query log / stats are in-memory too).
  */
 
 function createSysLog(capacity = 600) {
@@ -29,9 +28,6 @@ function createSysLog(capacity = 600) {
     try { return JSON.stringify(value); } catch (_) { return String(value); }
   };
 
-  let fileWriter = null;
-  const setFileWriter = fn => { fileWriter = fn; };
-
   function captureConsole() {
     for (const level of ['log', 'warn', 'error']) {
       const original = console[level].bind(console);
@@ -39,7 +35,6 @@ function createSysLog(capacity = 600) {
         original(...args);
         const msg = args.map(a => (typeof a === 'string' ? a : safeString(a))).join(' ');
         push(consoleLines, { t: Date.now(), level, msg }, 'console');
-        if (fileWriter) { try { fileWriter(msg); } catch (_) { /* never crash */ } }
       };
     }
   }
@@ -66,7 +61,7 @@ function createSysLog(capacity = 600) {
     events.length = 0;
   }
 
-  return { captureConsole, record, setFileWriter, subscribe, snapshot, clear };
+  return { captureConsole, record, subscribe, snapshot, clear };
 }
 
 module.exports = { createSysLog };

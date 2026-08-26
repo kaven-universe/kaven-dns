@@ -354,7 +354,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     res.json(syslog ? syslog.snapshot(limit) : { console: [], events: [] });
   });
 
-  // Stop the whole process (used by the packaged desktop app's Quit button).
+  // Stop the whole process (used by the console's Quit button).
   // The response is flushed before exit; requires an authenticated session.
   app.post('/api/shutdown', auth.middleware, (req, res) => {
     if (syslog) syslog.record('shutdown', 'stopping via the console Quit button');

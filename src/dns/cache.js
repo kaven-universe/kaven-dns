@@ -39,7 +39,9 @@ class DnsCache {
   }
 
   set(key, data, ttlSeconds) {
-    if (this.map.size >= this.maxEntries) {
+    // Only evict for a genuinely new key; overwriting an existing one (e.g.
+    // two concurrent misses for the same query) does not grow the map.
+    if (!this.map.has(key) && this.map.size >= this.maxEntries) {
       const oldest = this.map.keys().next().value;
       this.map.delete(oldest);
     }

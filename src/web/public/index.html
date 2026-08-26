@@ -467,7 +467,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
       <button class="btn secondary sm" @click="logout">{{ t('nav.signOut') }}</button>
     </header>
 
-    <!-- Full-screen notice once the desktop program has quit via the UI -->
+    <!-- Full-screen notice once the server process has quit via the UI -->
     <div v-if="exited" class="exited-overlay">
       <div style="text-align:center">
         <div style="font-size:20px;font-weight:600;margin-bottom:8px">{{ t('app.exitedTitle') }}</div>
