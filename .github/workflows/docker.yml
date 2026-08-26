@@ -28,7 +28,6 @@ jobs:
             kavenzero/${{ github.event.repository.name }}
             ghcr.io/${{ github.repository }}
           tags: |
-            type=ref,event=branch
             type=ref,event=tag
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
