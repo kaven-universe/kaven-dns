@@ -2,7 +2,7 @@
 
 const net = require('net');
 
-const { DATA_DIR, RULES_FILE, SESSIONS_FILE, loadConfig, hashPassword } = require('./config');
+const { DATA_DIR, RULES_FILE, SESSIONS_FILE, loadConfig, verifyPassword } = require('./config');
 const { RulesStore } = require('./store/rules');
 const { LogStore } = require('./store/logs');
 const { createSysLog } = require('./store/syslog');
@@ -26,7 +26,7 @@ async function main() {
   const resolver = new Resolver({ rulesStore, cache, getConfig: () => config });
   const dns = createDnsServers({ resolver, logs, port: config.dnsPort, address: config.bindAddress });
   const auth = createAuth({
-    verifyPassword: password => hashPassword(password) === config.passwordHash,
+    verifyPassword: password => verifyPassword(password, config.passwordHash),
     getSessionTtlMs: () => config.sessionTtlHours * 3600 * 1000,
     sessionsFile: SESSIONS_FILE,
   });

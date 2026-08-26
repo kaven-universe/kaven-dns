@@ -6,7 +6,7 @@ const os = require('os');
 const crypto = require('crypto');
 const express = require('express');
 const { Packet } = require('dns2');
-const { saveConfig, sanitize, hashPassword } = require('../config');
+const { saveConfig, sanitize, hashPassword, verifyPassword } = require('../config');
 const { validateRule } = require('../store/rules');
 const { normalizeDomain } = require('../dns/matching');
 const { typeName, summarizeAnswers } = require('../dns/util');
@@ -72,12 +72,14 @@ function probeBindable(address, port) {
 
 // A bindability probe cannot acquire an endpoint already held by our own DNS
 // listener. Treat it as available when restarting DNS would first release the
-// same endpoint. An IPv4 wildcard listener also owns every local IPv4 address.
+// same endpoint. A wildcard listener (0.0.0.0 or ::) also owns every local
+// address of the matching family.
 function heldByOwnDnsListener(status, address, port) {
   if (!status || !status.listening || status.port !== port) return false;
   const currentAddress = status.address || '0.0.0.0';
   const requestedAddress = address || '0.0.0.0';
-  return currentAddress === requestedAddress || currentAddress === '0.0.0.0';
+  const isWildcard = currentAddress === '0.0.0.0' || currentAddress === '::';
+  return currentAddress === requestedAddress || isWildcard;
 }
 
 function createWebServer({ config, rulesStore, logs, cache, resolver, auth, syslog, getDnsStatus, restartDns, runtime }) {
@@ -436,7 +438,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
 
     let passwordChanged = false;
     if (body.newPassword !== undefined && body.newPassword !== '') {
-      if (!body.currentPassword || hashPassword(body.currentPassword) !== config.passwordHash)
+      if (!body.currentPassword || !verifyPassword(body.currentPassword, config.passwordHash))
         errors.push(tr('config.current_password_incorrect'));
       else if (String(body.newPassword).length < 6)
         errors.push(tr('config.password_min'));

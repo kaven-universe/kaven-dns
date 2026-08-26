@@ -34,15 +34,37 @@ const DEFAULTS = {
   // Web console session lifetime in hours; sessions are renewed on activity,
   // so this is effectively an idle timeout
   sessionTtlHours: 24,
-  // sha256 hash of the Web console password; generated on first run
+  // salted scrypt hash of the Web console password (see hashPassword); generated on first run
   passwordHash: '',
 };
 
-function hashPassword(password) {
-  return crypto
-    .createHash('sha256')
-    .update(`kaven-dns:${password}`)
-    .digest('hex');
+const SCRYPT_PREFIX = 'scrypt';
+const SCRYPT_KEYLEN = 32;
+
+// Stored as `scrypt:<salt>:<derivedHex>` so a rainbow-table/precomputed
+// attack against a leaked config.json needs a fresh computation per install.
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const derived = crypto.scryptSync(String(password), salt, SCRYPT_KEYLEN).toString('hex');
+  return `${SCRYPT_PREFIX}:${salt}:${derived}`;
+}
+
+// Original (pre-salt) scheme: sha256("kaven-dns:" + password). Kept only so
+// a passwordHash saved by an older version still verifies; hashPassword()
+// never produces this format for new/changed passwords.
+function legacyHashPassword(password) {
+  return crypto.createHash('sha256').update(`kaven-dns:${password}`).digest('hex');
+}
+
+function verifyPassword(password, storedHash) {
+  const stored = String(storedHash || '');
+  const parts = stored.split(':');
+  if (parts.length === 3 && parts[0] === SCRYPT_PREFIX) {
+    const [, salt, expectedHex] = parts;
+    const expected = Buffer.from(expectedHex, 'hex');
+    const candidate = crypto.scryptSync(String(password), salt, SCRYPT_KEYLEN);
+    return expected.length === candidate.length && crypto.timingSafeEqual(expected, candidate);
+  }
+  return Boolean(stored) && legacyHashPassword(password) === stored;
 }
 
 function atomicWriteJson(file, data) {
@@ -143,5 +165,6 @@ module.exports = {
   saveConfig,
   sanitize,
   hashPassword,
+  verifyPassword,
   atomicWriteJson,
 };

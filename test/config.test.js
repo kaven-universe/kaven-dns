@@ -1,25 +1,34 @@
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { sanitize, hashPassword, atomicWriteJson } = require('../src/config');
+const { sanitize, hashPassword, verifyPassword, atomicWriteJson } = require('../src/config');
 
 function withTempDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kaven-dns-test-'));
   return Promise.resolve(fn(dir)).finally(() => fs.rmSync(dir, { recursive: true, force: true }));
 }
 
-test('hashPassword is deterministic and distinguishes different inputs', () => {
+test('hashPassword salts each call, and verifyPassword accepts only the matching password', () => {
   const a = hashPassword('correct horse');
   const b = hashPassword('correct horse');
-  const c = hashPassword('battery staple');
-  assert.equal(a, b);
-  assert.notEqual(a, c);
-  assert.match(a, /^[0-9a-f]{64}$/);
+  assert.notEqual(a, b); // different random salt per call
+  assert.match(a, /^scrypt:[0-9a-f]{32}:[0-9a-f]{64}$/);
+  assert.ok(verifyPassword('correct horse', a));
+  assert.ok(verifyPassword('correct horse', b));
+  assert.equal(verifyPassword('battery staple', a), false);
+  assert.equal(verifyPassword('correct horse', ''), false);
+});
+
+test('verifyPassword still accepts a legacy unsalted sha256 hash', () => {
+  const legacy = crypto.createHash('sha256').update('kaven-dns:old-password').digest('hex');
+  assert.ok(verifyPassword('old-password', legacy));
+  assert.equal(verifyPassword('wrong', legacy), false);
 });
 
 test('sanitize falls back to defaults for invalid ports, addresses and upstreams', () => {
