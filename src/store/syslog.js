@@ -12,10 +12,17 @@
 function createSysLog(capacity = 600) {
   const consoleLines = [];
   const events = [];
+  const listeners = new Set();
+  let sequence = 0;
 
-  const push = (arr, item) => {
-    arr.push(item);
+  const push = (arr, item, kind) => {
+    const logged = { ...item, seq: ++sequence };
+    arr.push(logged);
     if (arr.length > capacity) arr.splice(0, arr.length - capacity);
+    for (const listener of listeners) {
+      try { listener({ kind, item: logged }); } catch (_) { /* observers are isolated */ }
+    }
+    return logged;
   };
 
   const safeString = value => {
@@ -31,7 +38,7 @@ function createSysLog(capacity = 600) {
       console[level] = (...args) => {
         original(...args);
         const msg = args.map(a => (typeof a === 'string' ? a : safeString(a))).join(' ');
-        push(consoleLines, { t: Date.now(), level, msg });
+        push(consoleLines, { t: Date.now(), level, msg }, 'console');
         if (fileWriter) { try { fileWriter(msg); } catch (_) { /* never crash */ } }
       };
     }
@@ -39,9 +46,14 @@ function createSysLog(capacity = 600) {
 
   /** Record an audit event (also echoed through the console / log file). */
   function record(type, msg, level = 'log') {
-    push(events, { t: Date.now(), type, level, msg });
+    push(events, { t: Date.now(), type, level, msg }, 'event');
     const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
     fn(`[${type}] ${msg}`);
+  }
+
+  function subscribe(listener) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
   }
 
   function snapshot(limit = 400) {
@@ -54,7 +66,7 @@ function createSysLog(capacity = 600) {
     events.length = 0;
   }
 
-  return { captureConsole, record, setFileWriter, snapshot, clear };
+  return { captureConsole, record, setFileWriter, subscribe, snapshot, clear };
 }
 
 module.exports = { createSysLog };

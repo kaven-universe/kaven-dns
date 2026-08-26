@@ -17,6 +17,7 @@ This file applies to the entire repository. Keep changes small and consistent wi
 - `src/dns/server.js` owns UDP/TCP request handling and query logging. `resolver.js` owns the rule -> fixed/cache/forward pipeline, `matching.js` owns domain precedence, `forwarder.js` owns upstream I/O, and `cache.js` owns TTL/LRU behavior.
 - `src/store/` owns mutable in-memory state and persistence. Rules are read live by the resolver, so successful CRUD changes take effect without restart.
 - `src/web/server.js` is the HTTP boundary. Keep request validation and status-code decisions here, and inject collaborators through `createWebServer` rather than importing application singletons.
+- `src/web/events.js` owns authenticated SSE batching, heartbeats, and slow-client recovery. Query and system-log stores expose lightweight subscriptions; observers must never block or fail the DNS request path.
 - `src/web/auth.js` owns bearer sessions and login throttling. `src/i18n.js` owns localized server messages. `src/system.js` owns host/process metrics.
 
 ## Behavioral Invariants
@@ -26,6 +27,7 @@ This file applies to the entire repository. Keep changes small and consistent wi
 - Forwarded cache entries are scoped by domain, query type, and upstream set. Cache only successful answers, clamp their minimum TTL to the configured range, and preserve authority/additional records as the current resolver does.
 - Configuration is a shared live object. Validate input, call `sanitize`, persist atomically, and apply listener/cache/log changes at runtime where the existing API promises immediate effect.
 - Setup status/check/setup and login are the only public API flows. Routes registered after `app.use('/api', auth.middleware)` must remain authenticated. Never return or log password hashes, passwords, bearer tokens, or persisted session tokens.
+- Live console updates use an authenticated fetch/SSE stream plus REST snapshots and fallback. Batch and bound high-frequency events, recover slow clients with a fresh snapshot, and never put bearer tokens in URLs or let stream writes run inline with DNS resolution.
 - All untrusted API input needs server-side validation even when the client validates it. Keep the existing JSON body limit and bounded list/query limits unless a requirement explicitly changes them.
 - User-facing API errors must use `t(req.lang, ...)`, with matching Chinese and English entries in `src/i18n.js`. Frontend-visible text likewise needs both locales.
 - Preserve compatibility with persisted configuration, rules, and sessions. When changing a stored shape, provide normalization or migration on load instead of assuming fresh data.

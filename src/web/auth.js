@@ -105,7 +105,10 @@ function createAuth({ verifyPassword, getSessionTtlMs, sessionsFile }) {
     const token = header.startsWith('Bearer ')
       ? header.slice(7)
       : req.headers['x-auth-token'] || '';
-    if (token && check(token)) return next();
+    if (token && check(token)) {
+      req.authToken = token;
+      return next();
+    }
     res.status(401).json({ error: t(req.lang, 'auth.not_signed_in') });
   }
 

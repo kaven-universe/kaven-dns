@@ -253,6 +253,8 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 /* Toolbar */
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .toolbar .grow { flex: 1; }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; transition: background .2s; }
+.live-dot.on { background: var(--green); box-shadow: 0 0 0 3px rgba(22,163,74,.12); }
 
 /* Switch */
 .switch { position: relative; width: 36px; height: 20px; display: inline-block; }
@@ -673,6 +675,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
             </select>
             <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px">
               <span class="switch"><input type="checkbox" v-model="autoRefresh"><span class="slider"></span></span>
+              <span class="live-dot" :class="{on: liveConnected && autoRefresh}" :title="liveStatusTitle"></span>
               {{ t('log.autoRefresh') }}
             </label>
           </div>
@@ -682,8 +685,8 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 <tr><th>{{ t('log.time') }}</th><th>{{ t('log.client') }}</th><th>{{ t('log.domain') }}</th><th>{{ t('log.type') }}</th><th>{{ t('log.source') }}</th><th>{{ t('log.ruleUpstream') }}</th><th>{{ t('log.result') }}</th><th>{{ t('log.status') }}</th><th>{{ t('log.latency') }}</th></tr>
               </thead>
               <tbody>
-                <tr v-if="!logs.length"><td colspan="9" class="empty">{{ t('log.empty') }}</td></tr>
-                <tr v-for="(l, i) in logs" :key="i">
+                <tr v-if="!visibleLogs.length"><td colspan="9" class="empty">{{ t('log.empty') }}</td></tr>
+                <tr v-for="(l, i) in visibleLogs" :key="l.seq || i">
                   <td>{{ fmtTime(l.t) }}</td>
                   <td>{{ l.client }}</td>
                   <td class="wrap">{{ l.domain }}</td>
@@ -744,6 +747,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
             <span class="grow"></span>
             <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px">
               <span class="switch"><input type="checkbox" v-model="autoRefresh"><span class="slider"></span></span>
+              <span class="live-dot" :class="{on: liveConnected && autoRefresh}" :title="liveStatusTitle"></span>
               {{ t('log.autoRefresh') }}
             </label>
           </div>
@@ -754,7 +758,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
               </thead>
               <tbody>
                 <tr v-if="!syslog.events.length"><td colspan="3" class="empty">{{ t('syslog.emptyEvents') }}</td></tr>
-                <tr v-for="(e, i) in syslog.events" :key="i">
+                <tr v-for="(e, i) in syslog.events" :key="e.seq || i">
                   <td>{{ fmtTime(e.t) }}</td>
                   <td><span class="badge" :class="e.level">{{ e.type }}</span></td>
                   <td class="wrap">{{ e.msg }}</td>
@@ -772,7 +776,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
           </div>
           <div class="console-log">
             <div v-if="!syslog.console.length" class="empty">{{ t('syslog.emptyConsole') }}</div>
-            <div v-for="(l, i) in syslog.console" :key="i" class="cline" :class="l.level">
+            <div v-for="(l, i) in syslog.console" :key="l.seq || i" class="cline" :class="l.level">
               <span class="ctime">{{ fmtTime(l.t) }}</span>
               <span class="cmsg">{{ l.msg }}</span>
             </div>
@@ -1080,7 +1084,10 @@ const I18N = {
     'log.title': 'Query Log',
     'log.filterDomain': 'Filter by domain',
     'log.allSources': 'All sources',
-    'log.autoRefresh': 'Auto refresh',
+    'log.autoRefresh': 'Live updates',
+    'log.liveConnected': 'Live stream connected',
+    'log.liveFallback': 'Stream disconnected; using periodic refresh',
+    'log.livePaused': 'Live updates paused',
     'syslog.auditTitle': 'Operation Log',
     'syslog.consoleTitle': 'Console Output',
     'syslog.type': 'Type',
@@ -1310,7 +1317,10 @@ const I18N = {
     'log.title': '查询日志',
     'log.filterDomain': '按域名过滤',
     'log.allSources': '全部来源',
-    'log.autoRefresh': '自动刷新',
+    'log.autoRefresh': '实时更新',
+    'log.liveConnected': '实时数据流已连接',
+    'log.liveFallback': '数据流已断开，正在定时刷新',
+    'log.livePaused': '实时更新已暂停',
     'syslog.auditTitle': '操作日志',
     'syslog.consoleTitle': 'Console 输出',
     'syslog.type': '类型',
@@ -1468,10 +1478,10 @@ createApp({
       },
       trendMetric: 'total',
       exited: false,
-      logs: [],
+      logs: [], filteredLogs: [],
       syslog: { console: [], events: [] },
       logFilter: { domain: '', source: '' },
-      autoRefresh: true,
+      autoRefresh: true, liveConnected: false,
       rules: [],
       ruleModal: { visible: false, editing: false, saving: false, errors: [], form: {} },
       importModal: { visible: false, saving: false, mode: 'merge', parsed: null, errors: [] },
@@ -1499,6 +1509,16 @@ createApp({
       return this.dnsStatus.listening
         ? this.t('stats.dnsOk', { addr, port: this.dnsStatus.port })
         : this.t('stats.dnsFail', { addr, port: this.dnsStatus.port, error: this.dnsStatus.error || '?' });
+    },
+    liveStatusTitle() {
+      if (!this.autoRefresh) return this.t('log.livePaused');
+      return this.liveConnected ? this.t('log.liveConnected') : this.t('log.liveFallback');
+    },
+    visibleLogs() {
+      return this.logFilterActive ? this.filteredLogs : this.logs;
+    },
+    logFilterActive() {
+      return Boolean(this.logFilter.domain.trim() || this.logFilter.source);
     },
     valuePlaceholder() {
       const t = this.ruleModal.form.type;
@@ -1554,6 +1574,23 @@ createApp({
       return { points, linePath, areaPath, ticks };
     },
   },
+  watch: {
+    autoRefresh(enabled) {
+      if (!this.authed) return;
+      if (enabled && !document.hidden) {
+        this.refreshVisibleData();
+        this.startLiveStream();
+      } else {
+        this.stopLiveStream();
+      }
+    },
+    'logFilter.domain'() {
+      this.scheduleLogFilterRefresh();
+    },
+    'logFilter.source'() {
+      this.scheduleLogFilterRefresh();
+    },
+  },
   async mounted() {
     this.applyLocaleMeta();
     // Hash routing: clicking a nav link changes the hash; back/forward and
@@ -1568,7 +1605,7 @@ createApp({
     if (this.token) {
       try {
         await this.api('/api/auth/check');
-        this.enterApp();
+        await this.enterApp();
       } catch (_) {
         this.token = '';
         localStorage.removeItem('kaven_dns_token');
@@ -1588,15 +1625,27 @@ createApp({
         this.checkDnsAvailability();
       }
     } catch (_) { /* ignore */ }
-    setInterval(() => {
-      if (this.authed && this.autoRefresh && !document.hidden) {
-        if (this.tab === 'dashboard') {
-          this.refreshStats();
-          this.refreshLogs();
-        }
-        if (this.tab === 'system') this.loadSystemLog();
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    this._fallbackTimer = setInterval(() => {
+      if (this.authed && this.autoRefresh && !document.hidden && !this.liveConnected)
+        this.refreshVisibleData();
+    }, 5000);
+    this._liveWatchdogTimer = setInterval(() => {
+      const now = Date.now();
+      if (this._liveAbortController && this._liveLastFrameAt && now - this._liveLastFrameAt > 35000)
+        this._liveAbortController.abort();
+      if (this.liveConnected && this._liveHealthySince && now - this._liveHealthySince > 10000) {
+        this._liveReconnectDelay = 1000;
+        this._liveHealthySince = 0;
       }
-    }, 2000);
+    }, 5000);
+  },
+  beforeUnmount() {
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    clearInterval(this._fallbackTimer);
+    clearInterval(this._liveWatchdogTimer);
+    clearTimeout(this._logFilterTimer);
+    this.stopLiveStream();
   },
   methods: {
     t(key, args) {
@@ -1631,10 +1680,7 @@ createApp({
       let data = {};
       try { data = await res.json(); } catch (_) { /* empty response */ }
       if (res.status === 401 && path !== '/api/auth/login') {
-        this.authed = false;
-        this.token = '';
-        localStorage.removeItem('kaven_dns_token');
-        this.loginError = this.t('login.sessionExpired');
+        this.expireSession();
         throw new Error(data.error || this.t('login.sessionExpired'));
       }
       if (!res.ok) throw new Error(data.error || this.t('api.requestFailed', { status: res.status }));
@@ -1741,6 +1787,7 @@ createApp({
     },
     async logout() {
       try { await this.api('/api/auth/logout', { method: 'POST' }); } catch (_) { /* ignore */ }
+      this.stopLiveStream();
       this.authed = false;
       this.token = '';
       localStorage.removeItem('kaven_dns_token');
@@ -1749,16 +1796,185 @@ createApp({
     quitApp() {
       this.ask(this.t('toast.quitConfirm'), async () => {
         try { await this.api('/api/shutdown', { method: 'POST' }); } catch (_) { /* server already exiting */ }
+        this.stopLiveStream();
         this.exited = true;
       }, true);
     },
     async enterApp() {
       this.authed = true;
       await Promise.allSettled([this.refreshStats(), this.refreshLogs(), this.loadRules(), this.loadConfig(), this.loadSystemLog()]);
+      if (this.autoRefresh && !document.hidden) this.startLiveStream();
+    },
+    expireSession() {
+      this.stopLiveStream();
+      this.authed = false;
+      this.token = '';
+      localStorage.removeItem('kaven_dns_token');
+      this.loginError = this.t('login.sessionExpired');
+    },
+    handleVisibilityChange() {
+      if (document.hidden) {
+        this.stopLiveStream();
+      } else if (this.authed && this.autoRefresh) {
+        this.refreshVisibleData();
+        this.startLiveStream();
+      }
+    },
+    async refreshVisibleData() {
+      if (this._fallbackRefreshing) return;
+      this._fallbackRefreshing = true;
+      try {
+        if (this.tab === 'dashboard')
+          await Promise.allSettled([this.refreshStats(), this.refreshLogs()]);
+        else if (this.tab === 'system')
+          await this.loadSystemLog();
+      } finally {
+        this._fallbackRefreshing = false;
+      }
+    },
+    scheduleLiveReconnect() {
+      if (!this.authed || !this.autoRefresh || document.hidden || this._liveReconnectTimer) return;
+      const delay = this._liveReconnectDelay || 1000;
+      this._liveReconnectTimer = setTimeout(() => {
+        this._liveReconnectTimer = null;
+        this.startLiveStream();
+      }, delay);
+      this._liveReconnectDelay = Math.min(delay * 2, 15000);
+    },
+    stopLiveStream() {
+      clearTimeout(this._liveReconnectTimer);
+      this._liveReconnectTimer = null;
+      const controller = this._liveAbortController;
+      this._liveAbortController = null;
+      this.liveConnected = false;
+      this._liveLastFrameAt = 0;
+      this._liveHealthySince = 0;
+      if (controller) controller.abort();
+    },
+    async startLiveStream() {
+      if (!this.authed || !this.autoRefresh || document.hidden || this._liveAbortController) return;
+      clearTimeout(this._liveReconnectTimer);
+      this._liveReconnectTimer = null;
+      const controller = new AbortController();
+      this._liveAbortController = controller;
+      this._liveLastFrameAt = Date.now();
+      this._liveHealthySince = 0;
+      try {
+        const response = await fetch('/api/events', {
+          headers: {
+            Authorization: 'Bearer ' + this.token,
+            'Accept-Language': this.locale,
+          },
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (response.status === 401) {
+          this.expireSession();
+          return;
+        }
+        if (!response.ok || !response.body)
+          throw new Error(this.t('api.requestFailed', { status: response.status }));
+        await this.consumeLiveStream(response.body, controller);
+      } catch (error) {
+        if (error.name !== 'AbortError') console.warn('[live] stream disconnected:', error.message);
+      } finally {
+        if (this._liveAbortController !== controller) return;
+        this._liveAbortController = null;
+        this.liveConnected = false;
+        this.scheduleLiveReconnect();
+      }
+    },
+    async consumeLiveStream(body, controller) {
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (!controller.signal.aborted) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let boundary;
+        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          this.handleLiveBlock(block);
+        }
+      }
+    },
+    handleLiveBlock(block) {
+      this._liveLastFrameAt = Date.now();
+      let event = 'message';
+      const data = [];
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+      }
+      if (!data.length) return;
+      try {
+        const payload = JSON.parse(data.join('\n'));
+        if (!this.liveConnected) {
+          this.liveConnected = true;
+          this._liveHealthySince = Date.now();
+        }
+        this.applyLiveEvent(event, payload);
+      } catch (error) {
+        console.warn('[live] invalid event:', error.message);
+      }
+    },
+    applyLiveState(data) {
+      if (data.stats) this.stats = data.stats;
+      if (data.analytics) this.analytics = data.analytics;
+      if (data.cache) this.cacheInfo = data.cache;
+      if (data.system) this.systemInfo = data.system;
+      if (data.dns !== undefined) this.dnsStatus = data.dns;
+    },
+    applyLiveEvent(event, data) {
+      this._liveDataVersion = (this._liveDataVersion || 0) + 1;
+      if (event === 'snapshot') {
+        this.applyLiveState(data);
+        if (Array.isArray(data.logs)) this.logs = data.logs;
+        if (data.syslog) this.syslog = data.syslog;
+        if (this.logFilterActive) this.refreshFilteredLogs();
+      } else if (event === 'stats') {
+        this.applyLiveState(data);
+      } else if (event === 'queries') {
+        this.mergeQueryLogs(data.entries || []);
+        if (data.dropped) this.refreshLogs();
+      } else if (event === 'syslog') {
+        this.syslog = {
+          console: this.mergeChronological(this.syslog.console, data.console || [], 500),
+          events: this.mergeChronological(this.syslog.events, data.events || [], 500),
+        };
+        if (data.dropped) this.loadSystemLog();
+      }
+    },
+    mergeQueryLogs(entries) {
+      this.logs = this.mergeNewest(this.logs, entries, 200);
+      if (this.logFilterActive) {
+        const matching = entries.filter(item => this.matchesLogFilter(item));
+        this.filteredLogs = this.mergeNewest(this.filteredLogs, matching, 200);
+      }
+    },
+    mergeNewest(current, incoming, limit) {
+      const merged = new Map();
+      for (const item of [...current, ...incoming])
+        merged.set(item.seq || `${item.t}:${item.client}:${item.domain}:${item.type}`, item);
+      return [...merged.values()]
+        .sort((a, b) => (b.seq || 0) - (a.seq || 0) || b.t - a.t)
+        .slice(0, limit);
+    },
+    mergeChronological(current, incoming, limit) {
+      const merged = new Map();
+      for (const item of [...current, ...incoming])
+        merged.set(item.seq || `${item.t}:${item.level}:${item.msg || item.type}`, item);
+      return [...merged.values()]
+        .sort((a, b) => (a.seq || 0) - (b.seq || 0) || a.t - b.t)
+        .slice(-limit);
     },
     async refreshStats() {
+      const liveVersion = this._liveDataVersion || 0;
       try {
         const data = await this.api('/api/stats');
+        if ((this._liveDataVersion || 0) !== liveVersion) return;
         this.stats = data.stats;
         this.cacheInfo = data.cache;
         this.systemInfo = data.system || {};
@@ -1767,18 +1983,57 @@ createApp({
       } catch (_) { /* silent polling failure */ }
     },
     async refreshLogs() {
+      const liveVersion = this._liveDataVersion || 0;
       try {
-        const params = new URLSearchParams();
-        if (this.logFilter.domain) params.set('domain', this.logFilter.domain);
-        if (this.logFilter.source) params.set('source', this.logFilter.source);
-        const data = await this.api('/api/logs?' + params.toString());
-        this.logs = data.logs;
+        const data = await this.api('/api/logs?limit=200');
+        this.logs = (this._liveDataVersion || 0) === liveVersion
+          ? data.logs
+          : this.mergeNewest(data.logs, this.logs, 200);
+        if (this.logFilterActive) await this.refreshFilteredLogs();
       } catch (_) { /* silent polling failure */ }
     },
+    matchesLogFilter(log) {
+      const domain = this.logFilter.domain.trim().toLowerCase();
+      if (domain && !String(log.domain || '').toLowerCase().includes(domain)) return false;
+      return !this.logFilter.source || log.source === this.logFilter.source;
+    },
+    scheduleLogFilterRefresh() {
+      clearTimeout(this._logFilterTimer);
+      if (!this.logFilterActive) {
+        this.filteredLogs = [];
+        return;
+      }
+      this.filteredLogs = this.logs.filter(item => this.matchesLogFilter(item));
+      if (!this.authed) return;
+      this._logFilterTimer = setTimeout(() => this.refreshFilteredLogs(), 250);
+    },
+    async refreshFilteredLogs() {
+      const domain = this.logFilter.domain.trim();
+      const source = this.logFilter.source;
+      const liveVersion = this._liveDataVersion || 0;
+      if (!domain && !source) return;
+      const params = new URLSearchParams({ limit: '200' });
+      if (domain) params.set('domain', domain);
+      if (source) params.set('source', source);
+      try {
+        const data = await this.api('/api/logs?' + params.toString());
+        if (domain === this.logFilter.domain.trim() && source === this.logFilter.source) {
+          this.filteredLogs = (this._liveDataVersion || 0) === liveVersion
+            ? data.logs
+            : this.mergeNewest(data.logs, this.filteredLogs, 200);
+        }
+      } catch (_) { /* keep the immediately filtered local results */ }
+    },
     async loadSystemLog() {
+      const liveVersion = this._liveDataVersion || 0;
       try {
         const data = await this.api('/api/syslog?limit=500');
-        this.syslog = data;
+        this.syslog = (this._liveDataVersion || 0) === liveVersion
+          ? data
+          : {
+            console: this.mergeChronological(data.console, this.syslog.console, 500),
+            events: this.mergeChronological(data.events, this.syslog.events, 500),
+          };
       } catch (_) { /* silent polling failure */ }
     },
     async loadRules() {

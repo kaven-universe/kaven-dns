@@ -59,3 +59,20 @@ test('reports recent DNS clients and excludes Web console test queries', () => {
     { client: '192.0.2.3', count: 1, failures: 0, lastSeen: now - 3 * MINUTE },
   ]);
 });
+
+test('publishes sequenced entries after updating aggregate stats', () => {
+  const logs = new LogStore(20);
+  const published = [];
+  logs.subscribe(() => { throw new Error('observer failure'); });
+  const unsubscribe = logs.subscribe(item => {
+    published.push({ item, total: logs.getStats().total });
+  });
+
+  const first = logs.record(entry(Date.now(), 'one.example', '192.0.2.1'));
+  unsubscribe();
+  logs.record(entry(Date.now(), 'two.example', '192.0.2.1'));
+
+  assert.equal(first.seq, 1);
+  assert.deepEqual(published, [{ item: first, total: 1 }]);
+  assert.deepEqual(logs.list().map(item => item.seq), [2, 1]);
+});

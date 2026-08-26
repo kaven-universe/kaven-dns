@@ -13,7 +13,7 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 - **Upstream racing**: default upstreams are queried in parallel and the fastest successful response wins; TC-flagged answers are automatically retried over TCP
 - **Bilingual Web console** (Chinese / English, simple password authentication):
   - Language switcher on the login page and in the header; the preference is remembered and auto-detected from the browser on first visit
-  - Dashboard: query volume, rule/cache/forward hits, failures, average latency, cache hit rate, 60-minute query/latency/failure trends, top domains, active clients, and a live query log (domain / source filters); server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version). Analytics use the retained in-memory query window and reset on restart
+  - Dashboard: query volume, rule/cache/forward hits, failures, average latency, cache hit rate, 60-minute query/latency/failure trends, top domains, active clients, and a live query log (domain / source filters); server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version). Authenticated SSE streams batched live updates to visible consoles, with automatic reconnect and periodic REST fallback; analytics use the retained in-memory query window and reset on restart
   - Rules management: table + modal editor, enable toggle, remarks, import/export as JSON (merge by domains+type, or replace all)
   - Settings: upstream list, cache and log parameters, ports, password change, cache flush, resolve test
   - System Logs: operation/config-change audit trail plus the console output (what a hidden terminal would have shown), with a dark console viewer
@@ -142,6 +142,7 @@ Error messages are localized when an `Accept-Language: zh` (or `en`) header is s
 | GET | `/api/logs?domain=&source=&limit=` | Query log |
 | GET | `/api/stats` | Stats, cache info, DNS listener status |
 | GET | `/api/syslog?limit=` | Console output + audit events (operation/config changes) |
+| GET | `/api/events` | Authenticated SSE stream for batched query, stats and system-log updates |
 | POST | `/api/shutdown` | Stop the program |
 | POST | `/api/cache/flush` | Flush the cache |
 | GET/PUT | `/api/config` | Read / update config (incl. password change) |
@@ -168,6 +169,7 @@ src/
 │   └── syslog.js     # Console output capture + audit event ring buffer
 └── web/
     ├── server.js     # Express REST API
+    ├── events.js     # Authenticated SSE batching + slow-client recovery
     ├── auth.js       # Password login + token sessions
     └── public/       # Vue3 single-file frontend (no build step, zh/en)
         ├── index.html

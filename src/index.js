@@ -86,6 +86,7 @@ async function main() {
   });
   runtime.moveWeb = async (newPort, newAddress) => {
     const oldPort = runtime.currentPort;
+    web.disconnectEvents();
     await new Promise(resolve => runtime.server.close(resolve));
     try {
       runtime.server = await web.listen(newPort, newAddress);
@@ -127,6 +128,7 @@ async function main() {
     try {
       dns.close();
     } catch (_) { /* ignore */ }
+    web.close();
     if (runtime.server) runtime.server.close();
     process.exit(0);
   }

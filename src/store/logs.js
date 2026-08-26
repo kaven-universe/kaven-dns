@@ -9,6 +9,8 @@ class LogStore {
     this.capacity = capacity;
     this.entries = [];
     this.stats = this.resetStats();
+    this.sequence = 0;
+    this.listeners = new Set();
   }
 
   resetStats() {
@@ -31,21 +33,32 @@ class LogStore {
   }
 
   record(entry) {
-    this.entries.push(entry);
+    const logged = { ...entry, seq: ++this.sequence };
+    this.entries.push(logged);
     if (this.entries.length > this.capacity)
       this.entries.splice(0, this.entries.length - this.capacity);
 
     const s = this.stats;
     s.total++;
-    if (entry.source === 'fixed') s.fixed++;
-    else if (entry.source === 'cache') s.cache++;
-    else if (entry.source === 'forward') s.forward++;
-    if (entry.rcode === 2) s.servfail++;
-    if (entry.rcode === 3) s.nxdomain++;
-    s.totalLatencyMs += entry.latencyMs || 0;
+    if (logged.source === 'fixed') s.fixed++;
+    else if (logged.source === 'cache') s.cache++;
+    else if (logged.source === 'forward') s.forward++;
+    if (logged.rcode === 2) s.servfail++;
+    if (logged.rcode === 3) s.nxdomain++;
+    s.totalLatencyMs += logged.latencyMs || 0;
     // Latency of queries that actually hit an upstream (cache hits say
     // nothing about upstream quality)
-    if (entry.source === 'forward') s.forwardLatencyMs += entry.latencyMs || 0;
+    if (logged.source === 'forward') s.forwardLatencyMs += logged.latencyMs || 0;
+
+    for (const listener of this.listeners) {
+      try { listener(logged); } catch (_) { /* observers must never break DNS */ }
+    }
+    return logged;
+  }
+
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   list({ limit = 200, domain = '', source = '' } = {}) {

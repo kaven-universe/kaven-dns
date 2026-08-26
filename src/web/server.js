@@ -12,6 +12,7 @@ const { normalizeDomain } = require('../dns/matching');
 const { typeName, summarizeAnswers } = require('../dns/util');
 const { t, normalizeLang } = require('../i18n');
 const { createSystemMonitor } = require('../system');
+const { createEventStream } = require('./events');
 
 const UPSTREAM_RE = /^\d+\.\d+\.\d+\.\d+(:\d{1,5})?$/;
 
@@ -82,6 +83,14 @@ function heldByOwnDnsListener(status, address, port) {
 function createWebServer({ config, rulesStore, logs, cache, resolver, auth, syslog, getDnsStatus, restartDns, runtime }) {
   const app = express();
   const systemMonitor = createSystemMonitor();
+  const eventStream = createEventStream({
+    logs,
+    syslog,
+    cache,
+    systemMonitor,
+    getDnsStatus,
+    isAuthorized: token => auth.check(token),
+  });
   app.disable('x-powered-by');
   app.use(express.json({ limit: '256kb' }));
 
@@ -211,6 +220,10 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
 
   // ---- All APIs below require authentication ----
   app.use('/api', auth.middleware);
+
+  app.get('/api/events', (req, res) => {
+    eventStream.handle(req, res);
+  });
 
   // Rule CRUD
   app.get('/api/rules', (req, res) => {
@@ -585,7 +598,12 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     });
   }
 
-  return { listen, runtime };
+  return {
+    listen,
+    runtime,
+    disconnectEvents: eventStream.disconnect,
+    close: eventStream.close,
+  };
 }
 
 module.exports = { createWebServer, heldByOwnDnsListener };
