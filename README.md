@@ -46,14 +46,52 @@ nslookup test.local 127.0.0.1
 
 ## Deployment
 
-### Docker (planned, not implemented)
+### Docker
 
-Memo for the planned release via a GitHub repository + Actions workflow:
+Prebuilt multi-architecture images (`linux/amd64` and `linux/arm64`) are published to Docker Hub and the GitHub Container Registry:
 
-- Base image `node:22-alpine`; pure-JS dependencies, no native modules
-- `ENV KAVEN_DATA_DIR=/app/data` + `VOLUME /app/data` for rules/config/sessions persistence
-- `EXPOSE 53/udp 53 8080`; running as non-root needs `--cap-add=NET_BIND_SERVICE` for port 53, or publish a remap (`-p 5330:53`)
-- Build with `docker/build-push-action` + buildx multi-arch (amd64/arm64); derive tags from git refs via `docker/metadata-action`
+- `kavenzero/kaven-dns`
+- `ghcr.io/kaven-universe/kaven-dns`
+
+Run the latest image with DNS on port 53 and the Web console on port 8080:
+
+```bash
+docker run -d \
+  --name kaven-dns \
+  --restart unless-stopped \
+  --cap-add NET_BIND_SERVICE \
+  -p 53:53/tcp \
+  -p 53:53/udp \
+  -p 8080:8080 \
+  -v kaven-dns-data:/app/data \
+  kavenzero/kaven-dns:latest
+```
+
+Open `http://localhost:8080` to complete the first-run setup. The named volume preserves configuration, rules, and sessions across container upgrades.
+
+The container runs as a non-root user. If you do not want to grant permission to bind port 53, run DNS on an unprivileged port instead:
+
+```bash
+docker run -d \
+  --name kaven-dns \
+  --restart unless-stopped \
+  -e KAVEN_DNS_PORT=5330 \
+  -p 5330:5330/tcp \
+  -p 5330:5330/udp \
+  -p 8080:8080 \
+  -v kaven-dns-data:/app/data \
+  kavenzero/kaven-dns:latest
+```
+
+Select DNS port `5330` in the first-run setup screen as well. The environment variable applies the startup override, while the setup selection is saved in the persistent configuration.
+
+To build the image locally:
+
+```bash
+docker build -t kaven-dns .
+```
+
+The publishing workflow runs for pushes to `main`, version tags matching `v*`, and manual dispatches. Images receive branch/tag, commit SHA, current date-time, and `latest` tags as applicable.
 
 ## Rule Matching
 
