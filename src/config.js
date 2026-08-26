@@ -64,7 +64,10 @@ function verifyPassword(password, storedHash) {
     const candidate = crypto.scryptSync(String(password), salt, SCRYPT_KEYLEN);
     return expected.length === candidate.length && crypto.timingSafeEqual(expected, candidate);
   }
-  return Boolean(stored) && legacyHashPassword(password) === stored;
+  if (!stored) return false;
+  const expected = Buffer.from(stored, 'hex');
+  const candidate = Buffer.from(legacyHashPassword(password), 'hex');
+  return expected.length === candidate.length && crypto.timingSafeEqual(expected, candidate);
 }
 
 function atomicWriteJson(file, data) {
