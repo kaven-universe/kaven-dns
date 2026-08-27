@@ -24,7 +24,7 @@ ENV NODE_ENV=production \
 
 LABEL org.opencontainers.image.title="kaven-dns" \
     org.opencontainers.image.description="Node.js DNS server with a Web management console" \
-    org.opencontainers.image.version="1.2.0" \
+    org.opencontainers.image.version="1.2.1" \
     org.opencontainers.image.authors="Kaven <kaven@wuwenkai.com>"
 
 VOLUME ["/app/data"]

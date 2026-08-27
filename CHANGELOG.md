@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.1] - 2026-08-27
+
+### Fixed
+
+- TCP-originated DNS queries no longer silently lose their client IP in the query log. A `net.Socket`'s own `.address()` method (unrelated to the remote peer, always truthy) was shadowing the intended `remoteAddress` string, and `JSON.stringify` then silently dropped the resulting function value from the REST API, SSE stream, and persisted `data/querylog.json` (UDP queries were unaffected)
+
+### Changed
+
+- The "Query Log" and "System Logs" nav/tab labels are now "Queries" and "Logs", matching the single-word style of Domains/Clients/Rules/Settings; their URL routes and internal identifiers were renamed to match (`#/queries`, `#/logs`)
+
+### Added
+
+- An Export button on the Queries tab, next to the domain filter, downloads the current filter's matches (time range, column filters) as a dated JSON file
+
+### Testing
+
+- Extended the UDP/TCP end-to-end test to assert the logged client IP is a real string that survives a JSON round-trip (75 tests total)
+
 ## [1.2.0] - 2026-08-27
 
 ### Added
