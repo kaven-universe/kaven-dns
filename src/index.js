@@ -4,7 +4,7 @@ const net = require('net');
 
 const { DATA_DIR, RULES_FILE, SESSIONS_FILE, QUERYLOG_FILE, loadConfig, verifyPassword } = require('./config');
 const { RulesStore } = require('./store/rules');
-const { LogStore, HARD_CAP } = require('./store/logs');
+const { LogStore } = require('./store/logs');
 const { createSysLog } = require('./store/syslog');
 const { DnsCache } = require('./dns/cache');
 const { Resolver } = require('./dns/resolver');
@@ -21,7 +21,7 @@ async function main() {
   const { config } = loadConfig();
 
   const rulesStore = new RulesStore(RULES_FILE);
-  const logs = new LogStore(HARD_CAP, config.logRetentionDays, undefined, QUERYLOG_FILE);
+  const logs = new LogStore(undefined, config.logRetentionDays, undefined, QUERYLOG_FILE);
   const cache = new DnsCache(); // fixed size (DnsCache's own default); not user-configurable
   const resolver = new Resolver({ rulesStore, cache, getConfig: () => config });
   const dns = createDnsServers({ resolver, logs, port: config.dnsPort, address: config.bindAddress });
@@ -122,9 +122,16 @@ async function main() {
   const sweepTimer = setInterval(() => cache.sweep(), 60 * 1000);
   sweepTimer.unref();
 
+  // The query log has no fixed entry-count ceiling (see store/logs.js), so
+  // this is the only thing bounding its growth in practice - check more
+  // often than the cache sweep above to react quickly to a traffic burst.
+  const logMemoryTimer = setInterval(() => logs.enforceMemoryBound(), 5 * 1000);
+  logMemoryTimer.unref();
+
   function shutdown(signal) {
     syslog.record('shutdown', `received ${signal}; stopping`);
     clearInterval(sweepTimer);
+    clearInterval(logMemoryTimer);
     try {
       logs.persist();
     } catch (e) {

@@ -217,3 +217,40 @@ test('load() re-applies the current capacity and retention window to a restored 
   const next = logs.record(entry(now, 'new.example', '192.0.2.3'));
   assert.equal(next.seq, 6);
 });
+
+test('enforceMemoryBound() is a no-op when memory looks fine, regardless of retentionDays', () => {
+  const logs = new LogStore(1000, 0, Date.now, null, () => ({ freeRatio: 0.9, rss: 1000 }));
+  for (let i = 0; i < 10; i++) logs.record(entry(i, `d${i}.example`, '192.0.2.1'));
+  logs.enforceMemoryBound();
+  assert.equal(logs.list({ limit: 100 }).length, 10);
+});
+
+test('enforceMemoryBound() trims the oldest ~10% of entries when free memory is low', () => {
+  const logs = new LogStore(1000, 0, Date.now, null, () => ({ freeRatio: 0.01, rss: 1000 }));
+  for (let i = 0; i < 20; i++) logs.record(entry(i, `d${i}.example`, '192.0.2.1'));
+  logs.enforceMemoryBound();
+  const remaining = logs.list({ limit: 100 }).map(e => e.t).sort((a, b) => a - b);
+  assert.equal(remaining.length, 18); // dropped the 2 oldest (10% of 20)
+  assert.deepEqual(remaining.slice(0, 2), [2, 3]);
+});
+
+test('enforceMemoryBound() also trims when this process\'s own RSS looks large, even with free host memory', () => {
+  const logs = new LogStore(1000, 0, Date.now, null, () => ({ freeRatio: 0.9, rss: 999 * 1024 * 1024 * 1024 }));
+  for (let i = 0; i < 10; i++) logs.record(entry(i, `d${i}.example`, '192.0.2.1'));
+  logs.enforceMemoryBound();
+  assert.equal(logs.list({ limit: 100 }).length, 9);
+});
+
+test('enforceMemoryBound() and retentionDays>0 both apply independently', () => {
+  const DAY = 24 * 60 * MINUTE;
+  let now = Date.UTC(2026, 0, 1);
+  const logs = new LogStore(1000, 2, () => now, null, () => ({ freeRatio: 0.01, rss: 1000 }));
+  logs.record(entry(now, 'old.example', '192.0.2.1'));
+  now += DAY;
+  for (let i = 0; i < 9; i++) logs.record(entry(now, `mid${i}.example`, '192.0.2.2'));
+  now += 1.5 * DAY; // old.example ages out (> 2-day retention) via trimExpired() on the next record()
+  logs.record(entry(now, 'new.example', '192.0.2.3'));
+  assert.ok(!logs.list({ limit: 100 }).some(e => e.domain === 'old.example'));
+  logs.enforceMemoryBound(); // additionally drops the oldest ~10% for low memory
+  assert.equal(logs.list({ limit: 100 }).length, 9);
+});

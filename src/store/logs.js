@@ -1,5 +1,6 @@
 'use strict';
 
+const os = require('os');
 const { atomicWriteJson } = require('../config');
 
 /**
@@ -10,20 +11,35 @@ const { atomicWriteJson } = require('../config');
  * once on a clean shutdown (see index.js), so a normal exit/restart keeps
  * prior history; an unclean termination (crash, kill -9) still loses
  * whatever wasn't saved at the last clean shutdown.
+ * There is no fixed entry-count ceiling by default (capacity is Infinity) -
+ * entries are dropped only by age (retentionDays) and by actual memory
+ * pressure (see enforceMemoryBound()), so the log can grow as large as
+ * available memory allows. `capacity` still exists as an explicit,
+ * optional ring-buffer bound for callers/tests that want one.
  */
-// Hard ceiling on retained entries, independent of the configured retention
-// window - not user-configurable. Purely a safety net bounding worst-case
-// memory if actual query volume is far higher than the retention window
-// assumes; ~200000 entries is well under 200MB and should not bind for any
-// realistic deployment.
-const HARD_CAP = 200000;
+
+// Memory-based trimming thresholds, checked periodically (see
+// enforceMemoryBound()), not per-query. Two independent signals so this
+// works both outside a container (where free host memory is meaningful)
+// and inside one with a cgroup memory limit (where os.freemem()/totalmem()
+// report the HOST's memory, not the container's, so are blind to that
+// limit - this process's own RSS is bounded by the cgroup limit regardless
+// of what os.* reports, so it's checked too).
+const MIN_FREE_MEM_RATIO = 0.1; // keep >=10% of (host-reported) total memory free
+const MAX_PROCESS_RSS_BYTES = 512 * 1024 * 1024; // 512MB ceiling on this process's own footprint
+const MEMORY_TRIM_FRACTION = 0.1; // drop the oldest 10% of entries per check when over a threshold
+
+function defaultMemoryStats() {
+  return { freeRatio: os.freemem() / os.totalmem(), rss: process.memoryUsage().rss };
+}
 
 class LogStore {
-  constructor(capacity = HARD_CAP, retentionDays = 0, clock = Date.now, file = null) {
+  constructor(capacity = Infinity, retentionDays = 0, clock = Date.now, file = null, memoryStats = defaultMemoryStats) {
     this.capacity = capacity;
     this.retentionMs = retentionDays > 0 ? retentionDays * 24 * 60 * 60 * 1000 : 0;
     this.clock = clock;
     this.file = file;
+    this.memoryStats = memoryStats;
     this.entries = [];
     this.stats = this.resetStats();
     this.sequence = 0;
@@ -85,6 +101,20 @@ class LogStore {
     let i = 0;
     while (i < this.entries.length && this.entries[i].t < cutoff) i++;
     if (i > 0) this.entries.splice(0, i);
+  }
+
+  // Called periodically (see index.js), not per-query - checking memory
+  // usage has a small but non-zero cost. Drops the oldest ~10% of entries
+  // when the system is low on free memory OR this process's own footprint
+  // has grown large, whichever fires first; a no-op otherwise, regardless
+  // of retentionDays/capacity. With no fixed entry-count ceiling, this is
+  // the only thing bounding real-world growth in practice.
+  enforceMemoryBound() {
+    if (this.entries.length < 2) return;
+    const { freeRatio, rss } = this.memoryStats();
+    if (freeRatio >= MIN_FREE_MEM_RATIO && rss < MAX_PROCESS_RSS_BYTES) return;
+    const drop = Math.max(1, Math.ceil(this.entries.length * MEMORY_TRIM_FRACTION));
+    this.entries.splice(0, Math.min(drop, this.entries.length));
   }
 
   record(entry) {
@@ -234,4 +264,4 @@ class LogStore {
   }
 }
 
-module.exports = { LogStore, HARD_CAP };
+module.exports = { LogStore };

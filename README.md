@@ -122,7 +122,7 @@ A rule holds a group of domain patterns; a query matches the rule when it matche
 | `upstreams` | `223.5.5.5, 119.29.29.29, 114.114.114.114` | Default upstream group (`ip` or `ip:port`) |
 | `forwardTimeoutMs` | 3000 | Timeout per upstream forward |
 | `ttlMin` / `ttlMax` | 10 / 3600 | Cache TTL clamp range (seconds) |
-| `logRetentionDays` | 7 | Days of query log history to retain; 0 disables time-based trimming. Entries are always additionally bounded by a fixed internal safety ceiling (200,000) regardless of this setting |
+| `logRetentionDays` | 7 | Days of query log history to retain; 0 disables time-based trimming. Entries are also trimmed automatically (oldest first) if the system is low on free memory or this process's own memory usage grows large, so the log can hold as much history as available memory allows rather than a small fixed count |
 | `sessionTtlHours` | 24 | Web console session validity in hours; renewed on activity (idle timeout) and persisted across restarts |
 
 Environment variables: `KAVEN_DNS_PORT` / `KAVEN_WEB_PORT` temporarily override the ports (useful for debugging); `KAVEN_DATA_DIR` relocates the data directory (defaults to `<repo>/data`).
