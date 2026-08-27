@@ -2,7 +2,7 @@
 
 const net = require('net');
 
-const { DATA_DIR, RULES_FILE, SESSIONS_FILE, loadConfig, verifyPassword } = require('./config');
+const { DATA_DIR, RULES_FILE, SESSIONS_FILE, QUERYLOG_FILE, loadConfig, verifyPassword } = require('./config');
 const { RulesStore } = require('./store/rules');
 const { LogStore, HARD_CAP } = require('./store/logs');
 const { createSysLog } = require('./store/syslog');
@@ -21,7 +21,7 @@ async function main() {
   const { config } = loadConfig();
 
   const rulesStore = new RulesStore(RULES_FILE);
-  const logs = new LogStore(HARD_CAP, config.logRetentionDays);
+  const logs = new LogStore(HARD_CAP, config.logRetentionDays, undefined, QUERYLOG_FILE);
   const cache = new DnsCache(); // fixed size (DnsCache's own default); not user-configurable
   const resolver = new Resolver({ rulesStore, cache, getConfig: () => config });
   const dns = createDnsServers({ resolver, logs, port: config.dnsPort, address: config.bindAddress });
@@ -125,6 +125,11 @@ async function main() {
   function shutdown(signal) {
     syslog.record('shutdown', `received ${signal}; stopping`);
     clearInterval(sweepTimer);
+    try {
+      logs.persist();
+    } catch (e) {
+      console.error(`[logs] Failed to save ${QUERYLOG_FILE}: ${e.message}`);
+    }
     try {
       dns.close();
     } catch (_) { /* ignore */ }

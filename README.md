@@ -16,12 +16,12 @@ A DNS server built on Node.js with a Web console for monitoring and management.
   - Dashboard: at-a-glance overview — query volume, rule/cache/forward hits, failures, average latency, cache hit rate, a top-6 preview of top domains / active clients, and the 20 most recent log entries; server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version)
   - Query Log tab: a 60-minute query/latency/failure trend chart, plus the complete live query log as a sortable table (click any column header) with a domain search box, a time-range selector (last 15m/1h/6h/24h/7d, or a custom from/to range), and column-header filter popovers (funnel icon → pick a value → Reset/Confirm) on Domain, Client, Type, Source, Rule/Upstream and Status (OK or failed)
   - Domains tab / Clients tab: the complete top-domains and active-clients rankings as sortable, searchable tables with the same column-header filter popover on Failures (all / has failures / no failures), each on its own page (not capped to the Dashboard's top-6 preview)
-  - Authenticated SSE streams batched live updates to visible consoles, with automatic reconnect and periodic REST fallback; analytics use the retained in-memory query window and reset on restart
+  - Authenticated SSE streams batched live updates to visible consoles, with automatic reconnect and periodic REST fallback; analytics use the retained query window, which survives a normal restart (saved on clean shutdown, restored on the next start) and is only lost on a crash
   - Rules management: table + modal editor, enable toggle, remarks, import/export as JSON (merge by domains+type, or replace all)
   - Settings: upstream list, cache and log parameters, ports, password change, cache flush, resolve test
   - System Logs: operation/config-change audit trail plus the console output (what a hidden terminal would have shown), with a dark console viewer
   - API error messages are localized too, negotiated from the `Accept-Language` header
-- **No database**: rules and config persist to `data/*.json` (atomic writes); logs and stats live in memory
+- **No database**: rules, config and the query log persist to `data/*.json` (atomic writes, restored on the next start after a normal exit/restart)
 
 ## Quick Start
 
@@ -70,7 +70,7 @@ docker run -d \
   kavenzero/kaven-dns:latest
 ```
 
-Open `http://localhost:8080` to complete the first-run setup. The named volume preserves configuration, rules, and sessions across container upgrades.
+Open `http://localhost:8080` to complete the first-run setup. The named volume preserves configuration, rules, sessions, and the query log across container upgrades (`docker stop`/recreate sends `SIGTERM`, which the image's `dumb-init` entrypoint forwards to the Node process so it can save its state before exiting; `docker kill` skips this and loses unsaved history, same as any other unclean termination).
 
 The container runs as a non-root user. If you do not want to grant permission to bind port 53, run DNS on an unprivileged port instead:
 
@@ -182,3 +182,4 @@ src/
 
 - The frontend serves Vue 3 locally (`web/public/vendor/`), so the console works in offline / intranet environments
 - Login sessions are stored in `data/sessions.json` (idle timeout, renewed on activity) so server restarts keep you signed in
+- The query log and its stats are saved to `data/querylog.json` on a clean shutdown (SIGINT/SIGTERM) and restored on the next start, so a normal exit/restart doesn't lose history; there is no ongoing per-query disk write, and an unclean termination (crash, `kill -9`) still loses whatever wasn't saved at the last clean shutdown

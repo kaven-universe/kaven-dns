@@ -1,11 +1,19 @@
 'use strict';
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { LogStore } = require('../src/store/logs');
 
 const MINUTE = 60 * 1000;
+
+function tempFile() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kaven-dns-logs-'));
+  return path.join(dir, 'querylog.json');
+}
 
 function entry(t, domain, client, latencyMs = 10, rcode = 0) {
   return { t, domain, client, latencyMs, rcode, source: 'forward' };
@@ -162,4 +170,50 @@ test('setRetentionDays(0) disables time-based trimming, keeping capacity as the 
   logs.record(entry(now, 'new.example', '192.0.2.2'));
 
   assert.deepEqual(logs.list({ limit: 10 }).map(e => e.domain).sort(), ['new.example', 'old.example']);
+});
+
+test('persist()/load() round-trip entries, stats and sequence across separate LogStore instances', () => {
+  const file = tempFile();
+  const store1 = new LogStore(100, 0, Date.now, file);
+  store1.record(entry(1000, 'one.example', '192.0.2.1'));
+  store1.record(entry(2000, 'two.example', '192.0.2.2', 10, 2));
+  store1.persist();
+
+  const store2 = new LogStore(100, 0, Date.now, file);
+  assert.deepEqual(store2.list().map(e => e.domain).sort(), ['one.example', 'two.example']);
+  assert.equal(store2.getStats().total, 2);
+  assert.equal(store2.getStats().servfail, 1);
+
+  // A newly recorded entry must not collide with a restored seq number.
+  const restored = store2.record(entry(3000, 'three.example', '192.0.2.3'));
+  assert.equal(restored.seq, 3);
+});
+
+test('persist() is a no-op without a file, and load() tolerates a missing snapshot', () => {
+  const noFile = new LogStore(10);
+  noFile.record(entry(1, 'a.example', '192.0.2.1'));
+  assert.doesNotThrow(() => noFile.persist());
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kaven-dns-logs-'));
+  const missing = path.join(dir, 'does-not-exist.json');
+  assert.doesNotThrow(() => new LogStore(10, 0, Date.now, missing));
+});
+
+test('load() re-applies the current capacity and retention window to a restored snapshot', () => {
+  const DAY = 24 * 60 * MINUTE;
+  const now = Date.UTC(2026, 0, 10);
+  const file = tempFile();
+  fs.writeFileSync(file, JSON.stringify({
+    entries: [
+      entry(now - 10 * DAY, 'ancient.example', '192.0.2.1'),
+      { ...entry(now - MINUTE, 'recent.example', '192.0.2.2'), seq: 5 },
+    ],
+    stats: { startedAt: now - 10 * DAY, total: 2, fixed: 0, cache: 0, forward: 2, servfail: 0, nxdomain: 0, totalLatencyMs: 20, forwardLatencyMs: 20 },
+    sequence: 5,
+  }));
+
+  const logs = new LogStore(100, 2, () => now, file); // 2-day retention
+  assert.deepEqual(logs.list().map(e => e.domain), ['recent.example']);
+  const next = logs.record(entry(now, 'new.example', '192.0.2.3'));
+  assert.equal(next.seq, 6);
 });

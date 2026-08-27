@@ -162,6 +162,7 @@ module.exports = {
   DATA_DIR,
   RULES_FILE: path.join(DATA_DIR, 'rules.json'),
   SESSIONS_FILE: path.join(DATA_DIR, 'sessions.json'),
+  QUERYLOG_FILE: path.join(DATA_DIR, 'querylog.json'),
   loadConfig,
   saveConfig,
   sanitize,

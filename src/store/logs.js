@@ -1,8 +1,15 @@
 'use strict';
 
+const { atomicWriteJson } = require('../config');
+
 /**
  * Query log (ring buffer, drops oldest when full) + aggregate stats.
- * Logs are kept in memory only and reset on restart.
+ * Held in memory during normal operation - record() never touches disk, so
+ * there is no per-query I/O cost. When constructed with a file path, a
+ * snapshot (entries + stats + sequence) is restored on startup and saved
+ * once on a clean shutdown (see index.js), so a normal exit/restart keeps
+ * prior history; an unclean termination (crash, kill -9) still loses
+ * whatever wasn't saved at the last clean shutdown.
  */
 // Hard ceiling on retained entries, independent of the configured retention
 // window - not user-configurable. Purely a safety net bounding worst-case
@@ -12,14 +19,16 @@
 const HARD_CAP = 200000;
 
 class LogStore {
-  constructor(capacity = HARD_CAP, retentionDays = 0, clock = Date.now) {
+  constructor(capacity = HARD_CAP, retentionDays = 0, clock = Date.now, file = null) {
     this.capacity = capacity;
     this.retentionMs = retentionDays > 0 ? retentionDays * 24 * 60 * 60 * 1000 : 0;
     this.clock = clock;
+    this.file = file;
     this.entries = [];
     this.stats = this.resetStats();
     this.sequence = 0;
     this.listeners = new Set();
+    if (file) this.load();
   }
 
   resetStats() {
@@ -40,6 +49,33 @@ class LogStore {
   setRetentionDays(days) {
     this.retentionMs = days > 0 ? days * 24 * 60 * 60 * 1000 : 0;
     this.trimExpired();
+  }
+
+  // Restores a snapshot written by persist() on a previous clean shutdown.
+  // Missing file (fresh install) or unreadable/corrupt content just starts
+  // empty - a bad snapshot must never block startup.
+  load() {
+    try {
+      const raw = JSON.parse(require('fs').readFileSync(this.file, 'utf8'));
+      if (Array.isArray(raw.entries)) this.entries = raw.entries;
+      if (raw.stats && typeof raw.stats === 'object') this.stats = { ...this.resetStats(), ...raw.stats };
+      this.sequence = Number.isInteger(raw.sequence)
+        ? raw.sequence
+        : this.entries.reduce((max, e) => Math.max(max, e.seq || 0), 0);
+      // Re-apply the current capacity/retention in case they were lowered,
+      // or a lot of real time passed, since the snapshot was written.
+      if (this.entries.length > this.capacity) this.entries.splice(0, this.entries.length - this.capacity);
+      this.trimExpired();
+    } catch (e) {
+      if (e.code !== 'ENOENT') console.error(`[logs] Failed to read ${this.file}: ${e.message}`);
+    }
+  }
+
+  // Called once, only on a clean shutdown (index.js) - never from record(),
+  // so normal operation pays no ongoing disk-I/O cost.
+  persist() {
+    if (!this.file) return;
+    atomicWriteJson(this.file, { entries: this.entries, stats: this.stats, sequence: this.sequence });
   }
 
   // Entries are appended in order, so expired ones are always a prefix.
