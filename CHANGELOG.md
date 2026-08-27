@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.0] - 2026-08-27
+
+### Added
+
+- Query Log tab: a time-range selector (last 15 minutes / 1 / 6 / 24 hours / 7 days, or a custom from/to range) alongside the existing domain search
+- Column-header filter popovers (funnel icon → pick a value → Reset/Confirm) on Domain, Client, Type, Source, Rule/Upstream and Status in the Query Log tab, and on Failures in the Domains/Clients tabs
+- The query log and its stats now survive a normal exit/restart: saved to `data/querylog.json` on a clean shutdown (`SIGINT`/`SIGTERM`) and restored on the next start. There is no per-query disk write during normal operation, and an unclean termination (crash, `kill -9`) still loses whatever wasn't saved at the last clean shutdown
+
+### Changed
+
+- Dashboard reworked: the overview stays a compact preview (top-6 domains/clients, latest 20 log rows), with three dedicated full-page tabs (Query Log, Domains, Clients) as sortable, searchable tables; the 60-minute trend chart moved to the Query Log tab
+- The Domains/Clients tab headings are now just "Domains"/"Clients" (the Dashboard's compact preview cards still say "Top Domains"/"Active Clients")
+- Query log size is now controlled by a single `logRetentionDays` setting (default 7 days, 0 disables time-based trimming) instead of a raw entry-count setting. There is no fixed entry-count ceiling: entries are additionally trimmed (oldest first) only when the system is low on free memory or this process's own memory usage grows large, so the log can hold as much history as available memory allows
+- `getAnalytics()`'s top-domains/active-clients rankings are no longer capped at 6 by default (raised to 500, with accurate total counts)
+
+### Removed
+
+- The `cacheMaxEntries` and `logCapacity` settings are no longer user-configurable; the DNS answer cache uses a fixed internal default, and the query log's size is no longer bounded by a fixed entry count at all (existing config files with these fields keep loading normally, the fields are just ignored)
+
+### Testing
+
+- Added coverage for the new log filters (domain, rule/upstream, since/until time range), retention trimming, memory-based trimming, query log persistence round-tripping, and updated config `sanitize()` expectations for the simplified settings (75 tests total)
+
 ## [1.1.0] - 2026-08-26
 
 ### Added
