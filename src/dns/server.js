@@ -10,11 +10,22 @@ const { typeName, summarizeAnswers } = require('./util');
  * clientInfo is rinfo (address/port) for UDP and a net.Socket
  * (remoteAddress) for TCP.
  */
+// net.Socket (TCP) has its OWN .address() *method* (the local end), which is
+// truthy and would win a naive `client.address || client.remoteAddress`
+// check over the real peer IP - silently storing a function value that
+// JSON.stringify then drops the field for entirely. UDP's rinfo has no such
+// collision (.address is a plain string there), so only require a string.
+function extractClientIp(client) {
+  if (!client) return 'unknown';
+  if (typeof client.remoteAddress === 'string' && client.remoteAddress) return client.remoteAddress;
+  if (typeof client.address === 'string' && client.address) return client.address;
+  return 'unknown';
+}
+
 function createDnsServers({ resolver, logs, port, address }) {
   async function handle(request, send, client) {
     const started = Date.now();
-    const clientIp =
-      (client && (client.address || client.remoteAddress)) || 'unknown';
+    const clientIp = extractClientIp(client);
     const question = request.questions && request.questions[0];
 
     if (!question || !question.name) {

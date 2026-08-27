@@ -51,6 +51,16 @@ test('answers UDP and TCP queries and records a query log entry', async () => {
     assert.equal(entries.length, 2);
     assert.deepEqual(entries.map(e => e.domain).sort(), ['tcp.test', 'udp.test']);
     assert.equal(entries[0].rule, 'test-rule');
+    // Regression: net.Socket (TCP) has its own .address() method, which is
+    // truthy and previously won a naive `.address || .remoteAddress` check
+    // over the real peer IP - silently storing a function that JSON.stringify
+    // then drops the field for entirely. Both transports must log a real,
+    // JSON-serializable client IP string.
+    for (const entry of entries) {
+      assert.equal(typeof entry.client, 'string');
+      assert.ok(entry.client, `expected a non-empty client for ${entry.domain}`);
+      assert.equal(JSON.parse(JSON.stringify(entry)).client, entry.client);
+    }
 
     assert.deepEqual(dns.status(), { port, address: '127.0.0.1', listening: true, error: '' });
   } finally {

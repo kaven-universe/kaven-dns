@@ -482,11 +482,11 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
       <div class="brand"><span class="dot"></span>Kaven DNS</div>
       <nav>
         <a href="#/dashboard" :class="{active: tab==='dashboard'}">{{ t('nav.dashboard') }}</a>
-        <a href="#/querylog" :class="{active: tab==='querylog'}">{{ t('nav.queryLog') }}</a>
+        <a href="#/queries" :class="{active: tab==='queries'}">{{ t('nav.queries') }}</a>
         <a href="#/domains" :class="{active: tab==='domains'}">{{ t('nav.domains') }}</a>
         <a href="#/clients" :class="{active: tab==='clients'}">{{ t('nav.clients') }}</a>
         <a href="#/rules" :class="{active: tab==='rules'}">{{ t('nav.rules') }}</a>
-        <a href="#/system" :class="{active: tab==='system'}">{{ t('nav.system') }}</a>
+        <a href="#/logs" :class="{active: tab==='logs'}">{{ t('nav.logs') }}</a>
         <a href="#/settings" :class="{active: tab==='settings'}">{{ t('nav.settings') }}</a>
       </nav>
       <div class="lang-switch" style="margin-right:14px">
@@ -638,7 +638,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 </tbody>
               </table>
             </div>
-            <button v-if="logs.length > 20" class="rank-more" @click="goTo('querylog')">{{ t('log.viewAll') }}</button>
+            <button v-if="logs.length > 20" class="rank-more" @click="goTo('queries')">{{ t('log.viewAll') }}</button>
           </div>
 
           <div class="stacked-cards">
@@ -699,8 +699,8 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
         </div>
       </section>
 
-      <!-- Query Log (full) -->
-      <section v-show="tab==='querylog'">
+      <!-- Queries (full) -->
+      <section v-show="tab==='queries'">
         <div class="card">
           <div class="analysis-head">
             <div>
@@ -739,7 +739,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 
         <div class="card">
           <div class="toolbar">
-            <h3 style="margin:0">{{ t('log.title') }}</h3>
+            <h3 style="margin:0">{{ t('nav.queries') }}</h3>
             <span class="grow"></span>
             <select v-model="logFilter.rangePreset" :aria-label="t('log.timeRange')">
               <option value="">{{ t('log.rangeAll') }}</option>
@@ -756,6 +756,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
               <input type="datetime-local" v-model="logFilter.customTo" :aria-label="t('log.rangeTo')" style="width: 175px">
             </template>
             <input v-model="logFilter.domain" :placeholder="t('log.filterDomain')" style="width: 200px">
+            <button class="btn secondary sm" @click="exportLogs" :disabled="!sortedVisibleLogs.length">{{ t('log.export') }}</button>
             <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px">
               <span class="switch"><input type="checkbox" v-model="autoRefresh"><span class="slider"></span></span>
               <span class="live-dot" :class="{on: liveConnected && autoRefresh}" :title="liveStatusTitle"></span>
@@ -920,8 +921,8 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
         </div>
       </section>
 
-      <!-- System logs -->
-      <section v-show="tab==='system'">
+      <!-- Logs -->
+      <section v-show="tab==='logs'">
         <div class="card">
           <div class="toolbar">
             <h3 style="margin:0">{{ t('syslog.auditTitle') }}</h3>
@@ -1158,7 +1159,7 @@ const { createApp } = Vue;
 
 function tabFromHash() {
   const h = (location.hash || '').replace(/^#\/?/, '');
-  return ['dashboard', 'querylog', 'domains', 'clients', 'rules', 'system', 'settings'].includes(h) ? h : 'dashboard';
+  return ['dashboard', 'queries', 'domains', 'clients', 'rules', 'logs', 'settings'].includes(h) ? h : 'dashboard';
 }
 
 // Per-table column accessors for the generic sortRows() below; 'logs' covers
@@ -1234,11 +1235,11 @@ const I18N = {
     'setup.passwordMismatch': 'Passwords do not match',
     'login.sessionExpired': 'Session expired, please sign in again',
     'nav.dashboard': 'Dashboard',
-    'nav.queryLog': 'Query Log',
+    'nav.queries': 'Queries',
     'nav.domains': 'Domains',
     'nav.clients': 'Clients',
     'nav.rules': 'Rules',
-    'nav.system': 'System Logs',
+    'nav.logs': 'Logs',
     'nav.settings': 'Settings',
     'nav.signOut': 'Sign Out',
     'nav.quit': 'Quit',
@@ -1332,6 +1333,8 @@ const I18N = {
     'filter.reset': 'Reset',
     'filter.confirm': 'Confirm',
     'log.autoRefresh': 'Live updates',
+    'log.export': 'Export',
+    'log.exported': 'Exported {n} queries',
     'log.liveConnected': 'Live stream connected',
     'log.liveFallback': 'Stream disconnected; using periodic refresh',
     'log.livePaused': 'Live updates paused',
@@ -1497,11 +1500,11 @@ const I18N = {
     'setup.passwordMismatch': '两次输入的密码不一致',
     'login.sessionExpired': '会话已过期，请重新登录',
     'nav.dashboard': '仪表盘',
-    'nav.queryLog': '查询日志',
+    'nav.queries': '查询',
     'nav.domains': '域名',
     'nav.clients': '客户端',
     'nav.rules': '解析规则',
-    'nav.system': '系统日志',
+    'nav.logs': '日志',
     'nav.settings': '设置',
     'nav.signOut': '退出登录',
     'nav.quit': '退出',
@@ -1595,6 +1598,8 @@ const I18N = {
     'filter.reset': '重置',
     'filter.confirm': '确定',
     'log.autoRefresh': '实时更新',
+    'log.export': '导出',
+    'log.exported': '已导出 {n} 条查询',
     'log.liveConnected': '实时数据流已连接',
     'log.liveFallback': '数据流已断开，正在定时刷新',
     'log.livePaused': '实时更新已暂停',
@@ -2204,9 +2209,9 @@ const app = createApp({
       if (this._fallbackRefreshing) return;
       this._fallbackRefreshing = true;
       try {
-        if (this.tab === 'dashboard' || this.tab === 'querylog' || this.tab === 'domains' || this.tab === 'clients')
+        if (this.tab === 'dashboard' || this.tab === 'queries' || this.tab === 'domains' || this.tab === 'clients')
           await Promise.allSettled([this.refreshStats(), this.refreshLogs()]);
-        else if (this.tab === 'system')
+        else if (this.tab === 'logs')
           await this.loadSystemLog();
       } finally {
         this._fallbackRefreshing = false;
@@ -2410,6 +2415,21 @@ const app = createApp({
       if (!this.authed) return;
       this._logFilterTimer = setTimeout(() => this.refreshFilteredLogs(), 250);
     },
+    // Shared by refreshFilteredLogs() and exportLogs(): builds /api/logs params from logFilter.
+    buildLogQueryParams(limit) {
+      const params = new URLSearchParams({ limit: String(limit) });
+      const domain = this.logFilter.domain.trim();
+      if (domain) params.set('domain', domain);
+      if (this.logFilter.source) params.set('source', this.logFilter.source);
+      if (this.logFilter.status) params.set('status', this.logFilter.status);
+      if (this.logFilter.type) params.set('type', this.logFilter.type);
+      if (this.logFilter.client) params.set('client', this.logFilter.client);
+      if (this.logFilter.rule) params.set('rule', this.logFilter.rule);
+      const { since, until } = this.computeLogTimeRange();
+      if (since) params.set('since', String(since));
+      if (until) params.set('until', String(until));
+      return params;
+    },
     async refreshFilteredLogs() {
       const domain = this.logFilter.domain.trim();
       const source = this.logFilter.source;
@@ -2422,16 +2442,7 @@ const app = createApp({
       const customTo = this.logFilter.customTo;
       const liveVersion = this._liveDataVersion || 0;
       if (!domain && !source && !status && !type && !client && !rule && !rangePreset) return;
-      const { since, until } = this.computeLogTimeRange();
-      const params = new URLSearchParams({ limit: '200' });
-      if (domain) params.set('domain', domain);
-      if (source) params.set('source', source);
-      if (status) params.set('status', status);
-      if (type) params.set('type', type);
-      if (client) params.set('client', client);
-      if (rule) params.set('rule', rule);
-      if (since) params.set('since', String(since));
-      if (until) params.set('until', String(until));
+      const params = this.buildLogQueryParams(200);
       try {
         const data = await this.api('/api/logs?' + params.toString());
         if (
@@ -2445,6 +2456,24 @@ const app = createApp({
             : this.mergeNewest(data.logs, this.filteredLogs, 200);
         }
       } catch (_) { /* keep the immediately filtered local results */ }
+    },
+    // Export: fetch the current filter's matches fresh (up to the server's max), then download as a dated JSON file
+    async exportLogs() {
+      try {
+        const data = await this.api('/api/logs?' + this.buildLogQueryParams(1000).toString());
+        const blob = new Blob(
+          [JSON.stringify({ exportedAt: new Date().toISOString(), logs: data.logs }, null, 2)],
+          { type: 'application/json' },
+        );
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'kaven-dns-queries-' + new Date().toISOString().slice(0, 10) + '.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        this.showToast(this.t('log.exported', { n: data.logs.length }));
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
     },
     async loadSystemLog() {
       const liveVersion = this._liveDataVersion || 0;
