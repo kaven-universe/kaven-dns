@@ -176,6 +176,13 @@ main { margin: 20px 0 40px; padding: 0 clamp(16px, 2.5vw, 48px) 40px; }
   gap: 16px; margin-bottom: 16px; align-items: stretch;
 }
 .analysis-grid > .card { margin-bottom: 0; min-width: 0; }
+.log-side-grid {
+  display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, .8fr);
+  gap: 16px; align-items: start; margin-bottom: 16px;
+}
+.log-side-grid > .card { margin-bottom: 0; min-width: 0; }
+.stacked-cards { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.stacked-cards > .card { margin-bottom: 0; }
 .analysis-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .analysis-head h3 { margin: 0; }
 .analysis-sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
@@ -213,6 +220,8 @@ main { margin: 20px 0 40px; padding: 0 clamp(16px, 2.5vw, 48px) 40px; }
 .rank-value { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
 .rank-track { height: 3px; border-radius: 2px; background: #eef2f7; margin-top: 4px; overflow: hidden; }
 .rank-track span { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
+.rank-more { width: 100%; margin-top: 10px; padding: 6px; background: transparent; color: var(--primary); font-size: 12px; font-weight: 600; text-align: center; border: 1px dashed var(--border); border-radius: 6px; }
+.rank-more:hover { background: #f8fafc; border-color: var(--primary); }
 .client-row .rank-track span { background: var(--green); }
 .client-index { position: relative; background: rgba(22,163,74,.1); color: var(--green); }
 .client-index::after { content: ""; position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--green); right: 2px; top: 2px; }
@@ -222,6 +231,24 @@ main { margin: 20px 0 40px; padding: 0 clamp(16px, 2.5vw, 48px) 40px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--text); }
+.col-filter { display: inline-block; margin-left: 6px; }
+.col-filter-icon {
+  padding: 2px 5px; background: transparent; color: var(--muted); border-radius: 4px;
+  font-size: 11px; line-height: 1.4; vertical-align: middle;
+}
+.col-filter-icon:hover { background: #e2e8f0; }
+.col-filter-icon.active { color: var(--primary); }
+.col-filter-pop {
+  position: fixed; z-index: 200; background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15,23,42,.15); padding: 10px 12px; min-width: 160px;
+  font-weight: normal; font-size: 13px; color: var(--text); white-space: normal; cursor: default;
+}
+.col-filter-opt { display: flex; align-items: center; gap: 6px; padding: 4px 2px; white-space: nowrap; cursor: pointer; font-weight: normal; }
+.col-filter-options { max-height: 220px; overflow-y: auto; }
+.col-filter-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.col-filter-actions .btn { padding: 3px 10px; font-size: 12px; }
 tbody tr:hover { background: #f8fafc; }
 td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px); }
 .tbl-scroll { overflow-x: auto; }
@@ -312,7 +339,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   .query-kpis { grid-column: 1 / -1; border-bottom: 1px solid var(--border); }
   .query-detail:first-of-type { border-left: 0; }
   .analysis-grid { grid-template-columns: 1fr 1fr; }
-  .trend-card { grid-column: 1 / -1; }
+  .log-side-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
@@ -337,7 +364,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   .query-kpi .sub { min-height: 26px; white-space: normal; font-size: 10px; line-height: 1.3; }
   .query-detail { padding: 14px 16px; border-left: 0; border-top: 1px solid var(--border); }
   .analysis-grid { grid-template-columns: 1fr; }
-  .trend-card { grid-column: auto; }
+  .log-side-grid { grid-template-columns: 1fr; }
   .analysis-head { flex-direction: column; }
   .segmented { width: 100%; }
   .segmented button { flex: 1; }
@@ -455,6 +482,9 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
       <div class="brand"><span class="dot"></span>Kaven DNS</div>
       <nav>
         <a href="#/dashboard" :class="{active: tab==='dashboard'}">{{ t('nav.dashboard') }}</a>
+        <a href="#/querylog" :class="{active: tab==='querylog'}">{{ t('nav.queryLog') }}</a>
+        <a href="#/domains" :class="{active: tab==='domains'}">{{ t('nav.domains') }}</a>
+        <a href="#/clients" :class="{active: tab==='clients'}">{{ t('nav.clients') }}</a>
         <a href="#/rules" :class="{active: tab==='rules'}">{{ t('nav.rules') }}</a>
         <a href="#/system" :class="{active: tab==='system'}">{{ t('nav.system') }}</a>
         <a href="#/settings" :class="{active: tab==='settings'}">{{ t('nav.settings') }}</a>
@@ -554,88 +584,6 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
           </div>
         </div>
 
-        <div class="analysis-grid">
-          <div class="card trend-card">
-            <div class="analysis-head">
-              <div>
-                <h3>{{ t('analytics.trendTitle') }}</h3>
-                <div class="analysis-sub">{{ t('analytics.window', {n: analytics.trend.windowMinutes, bucket: analytics.trend.bucketMinutes}) }}</div>
-              </div>
-              <div class="segmented" role="group" :aria-label="t('analytics.metric')">
-                <button :class="{on: trendMetric === 'total'}" @click="trendMetric = 'total'">{{ t('analytics.queries') }}</button>
-                <button :class="{on: trendMetric === 'latency'}" @click="trendMetric = 'latency'">{{ t('analytics.latency') }}</button>
-                <button :class="{on: trendMetric === 'failures'}" @click="trendMetric = 'failures'">{{ t('analytics.failures') }}</button>
-              </div>
-            </div>
-            <div v-if="analytics.sampledQueries" class="chart-wrap">
-              <div class="chart-y-axis">
-                <span v-for="tick in trendChart.ticks" :key="tick.value">{{ tick.label }}</span>
-              </div>
-              <div class="chart-main" :class="'metric-' + trendMetric" role="img" :aria-label="t('analytics.chartAria', {metric: trendMetricText, n: analytics.trend.windowMinutes})">
-                <div class="chart-plot">
-                  <svg class="trend-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                    <line v-for="tick in trendChart.ticks" :key="tick.value" class="chart-grid" x1="0" x2="100" :y1="tick.y" :y2="tick.y"></line>
-                    <path class="chart-area" :d="trendChart.areaPath"></path>
-                    <path class="chart-line" :d="trendChart.linePath"></path>
-                  </svg>
-                  <span v-for="point in trendChart.points" :key="point.t" class="chart-point" :style="{left: point.x + '%', top: point.y + '%'}" :title="fmtTrendTime(point.t) + ' · ' + point.displayValue"></span>
-                </div>
-                <div class="chart-x-axis">
-                  <template v-for="point in trendChart.points" :key="point.t">
-                    <span v-if="point.showLabel" :style="{left: point.x + '%'}">{{ fmtTrendTime(point.t) }}</span>
-                  </template>
-                </div>
-              </div>
-            </div>
-            <div v-else class="analysis-empty">{{ t('analytics.empty') }}</div>
-            <div class="analysis-note">{{ t('analytics.memoryNote', {n: analytics.sampledQueries}) }}</div>
-          </div>
-
-          <div class="card">
-            <div class="analysis-head">
-              <div>
-                <h3>{{ t('analytics.topDomains') }}</h3>
-                <div class="analysis-sub">{{ t('analytics.lastMinutes', {n: analytics.trend.windowMinutes}) }}</div>
-              </div>
-              <span class="count-badge">{{ analytics.topDomains.length }}</span>
-            </div>
-            <div v-if="!analytics.topDomains.length" class="empty">{{ t('analytics.empty') }}</div>
-            <div v-else class="ranked-list">
-              <div v-for="(item, index) in analytics.topDomains" :key="item.domain" class="rank-row">
-                <span class="rank-index">{{ index + 1 }}</span>
-                <div class="rank-body">
-                  <span class="rank-name" :title="item.domain">{{ item.domain }}</span>
-                  <div class="rank-meta">{{ item.failures ? t('analytics.failureCount', {n: item.failures}) : t('analytics.allSuccessful') }}</div>
-                  <div class="rank-track"><span :style="{width: rankWidth(item.count, analytics.topDomains)}"></span></div>
-                </div>
-                <span class="rank-value">{{ item.count }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="analysis-head">
-              <div>
-                <h3>{{ t('analytics.activeClients') }}</h3>
-                <div class="analysis-sub">{{ t('analytics.activeWindow', {n: analytics.activeMinutes}) }}</div>
-              </div>
-              <span class="count-badge">{{ analytics.activeClientCount }}</span>
-            </div>
-            <div v-if="!analytics.activeClients.length" class="empty">{{ t('analytics.noActiveClients') }}</div>
-            <div v-else class="ranked-list">
-              <div v-for="(item, index) in analytics.activeClients" :key="item.client" class="rank-row client-row">
-                <span class="rank-index client-index">{{ index + 1 }}</span>
-                <div class="rank-body">
-                  <span class="rank-name" :title="item.client">{{ item.client }}</span>
-                  <div class="rank-meta">{{ fmtAgo(item.lastSeen) }}<template v-if="item.failures"> · {{ t('analytics.failureCount', {n: item.failures}) }}</template></div>
-                  <div class="rank-track"><span :style="{width: rankWidth(item.count, analytics.activeClients)}"></span></div>
-                </div>
-                <span class="rank-value">{{ item.count }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div class="card">
           <h3>{{ t('test.title') }}</h3>
           <div class="toolbar">
@@ -662,17 +610,152 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
           </div>
         </div>
 
+        <div class="log-side-grid">
+          <div class="card">
+            <div class="toolbar">
+              <h3 style="margin:0">{{ t('log.title') }}</h3>
+              <span class="grow"></span>
+              <span class="live-dot" :class="{on: liveConnected && autoRefresh}" :title="liveStatusTitle"></span>
+            </div>
+            <div class="tbl-scroll">
+              <table>
+                <thead>
+                  <tr><th>{{ t('log.time') }}</th><th>{{ t('log.client') }}</th><th>{{ t('log.domain') }}</th><th>{{ t('log.type') }}</th><th>{{ t('log.source') }}</th><th>{{ t('log.ruleUpstream') }}</th><th>{{ t('log.result') }}</th><th>{{ t('log.status') }}</th><th>{{ t('log.latency') }}</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-if="!recentLogs.length"><td colspan="9" class="empty">{{ t('log.empty') }}</td></tr>
+                  <tr v-for="(l, i) in recentLogs" :key="l.seq || i">
+                    <td>{{ fmtTime(l.t) }}</td>
+                    <td>{{ l.client }}</td>
+                    <td class="wrap">{{ l.domain }}</td>
+                    <td>{{ l.type }}</td>
+                    <td><span class="badge" :class="l.source">{{ sourceText(l.source) }}</span></td>
+                    <td class="wrap">{{ l.rule || l.upstream || (l.error ? l.error : '-') }}</td>
+                    <td class="wrap">{{ l.answers || '-' }}</td>
+                    <td><span class="badge" :class="l.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(l.rcode) }}</span></td>
+                    <td>{{ l.latencyMs }} ms</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <button v-if="logs.length > 20" class="rank-more" @click="goTo('querylog')">{{ t('log.viewAll') }}</button>
+          </div>
+
+          <div class="stacked-cards">
+            <div class="card">
+              <div class="analysis-head">
+                <div>
+                  <h3>{{ t('analytics.topDomains') }}</h3>
+                  <div class="analysis-sub">{{ t('analytics.lastMinutes', {n: analytics.trend.windowMinutes}) }}</div>
+                </div>
+                <span class="count-badge">{{ analytics.topDomainCount }}</span>
+              </div>
+              <div v-if="!analytics.topDomains.length" class="empty">{{ t('analytics.empty') }}</div>
+              <template v-else>
+                <div class="ranked-list">
+                  <div v-for="(item, index) in dashboardTopDomains" :key="item.domain" class="rank-row">
+                    <span class="rank-index">{{ index + 1 }}</span>
+                    <div class="rank-body">
+                      <span class="rank-name" :title="item.domain">{{ item.domain }}</span>
+                      <div class="rank-meta">{{ item.failures ? t('analytics.failureCount', {n: item.failures}) : t('analytics.allSuccessful') }}</div>
+                      <div class="rank-track"><span :style="{width: rankWidth(item.count, analytics.topDomains)}"></span></div>
+                    </div>
+                    <span class="rank-value">{{ item.count }}</span>
+                  </div>
+                </div>
+                <button v-if="analytics.topDomainCount > 6" class="rank-more" @click="goTo('domains')">
+                  {{ t('analytics.viewAll', {n: analytics.topDomainCount}) }}
+                </button>
+              </template>
+            </div>
+
+            <div class="card">
+              <div class="analysis-head">
+                <div>
+                  <h3>{{ t('analytics.activeClients') }}</h3>
+                  <div class="analysis-sub">{{ t('analytics.activeWindow', {n: analytics.activeMinutes}) }}</div>
+                </div>
+                <span class="count-badge">{{ analytics.activeClientCount }}</span>
+              </div>
+              <div v-if="!analytics.activeClients.length" class="empty">{{ t('analytics.noActiveClients') }}</div>
+              <template v-else>
+                <div class="ranked-list">
+                  <div v-for="(item, index) in dashboardActiveClients" :key="item.client" class="rank-row client-row">
+                    <span class="rank-index client-index">{{ index + 1 }}</span>
+                    <div class="rank-body">
+                      <span class="rank-name" :title="item.client">{{ item.client }}</span>
+                      <div class="rank-meta">{{ fmtAgo(item.lastSeen) }}<template v-if="item.failures"> · {{ t('analytics.failureCount', {n: item.failures}) }}</template></div>
+                      <div class="rank-track"><span :style="{width: rankWidth(item.count, analytics.activeClients)}"></span></div>
+                    </div>
+                    <span class="rank-value">{{ item.count }}</span>
+                  </div>
+                </div>
+                <button v-if="analytics.activeClientCount > 6" class="rank-more" @click="goTo('clients')">
+                  {{ t('analytics.viewAll', {n: analytics.activeClientCount}) }}
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Query Log (full) -->
+      <section v-show="tab==='querylog'">
+        <div class="card">
+          <div class="analysis-head">
+            <div>
+              <h3>{{ t('analytics.trendTitle') }}</h3>
+              <div class="analysis-sub">{{ t('analytics.window', {n: analytics.trend.windowMinutes, bucket: analytics.trend.bucketMinutes}) }}</div>
+            </div>
+            <div class="segmented" role="group" :aria-label="t('analytics.metric')">
+              <button :class="{on: trendMetric === 'total'}" @click="trendMetric = 'total'">{{ t('analytics.queries') }}</button>
+              <button :class="{on: trendMetric === 'latency'}" @click="trendMetric = 'latency'">{{ t('analytics.latency') }}</button>
+              <button :class="{on: trendMetric === 'failures'}" @click="trendMetric = 'failures'">{{ t('analytics.failures') }}</button>
+            </div>
+          </div>
+          <div v-if="analytics.sampledQueries" class="chart-wrap">
+            <div class="chart-y-axis">
+              <span v-for="tick in trendChart.ticks" :key="tick.value">{{ tick.label }}</span>
+            </div>
+            <div class="chart-main" :class="'metric-' + trendMetric" role="img" :aria-label="t('analytics.chartAria', {metric: trendMetricText, n: analytics.trend.windowMinutes})">
+              <div class="chart-plot">
+                <svg class="trend-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                  <line v-for="tick in trendChart.ticks" :key="tick.value" class="chart-grid" x1="0" x2="100" :y1="tick.y" :y2="tick.y"></line>
+                  <path class="chart-area" :d="trendChart.areaPath"></path>
+                  <path class="chart-line" :d="trendChart.linePath"></path>
+                </svg>
+                <span v-for="point in trendChart.points" :key="point.t" class="chart-point" :style="{left: point.x + '%', top: point.y + '%'}" :title="fmtTrendTime(point.t) + ' · ' + point.displayValue"></span>
+              </div>
+              <div class="chart-x-axis">
+                <template v-for="point in trendChart.points" :key="point.t">
+                  <span v-if="point.showLabel" :style="{left: point.x + '%'}">{{ fmtTrendTime(point.t) }}</span>
+                </template>
+              </div>
+            </div>
+          </div>
+          <div v-else class="analysis-empty">{{ t('analytics.empty') }}</div>
+          <div class="analysis-note">{{ t('analytics.memoryNote', {n: analytics.sampledQueries}) }}</div>
+        </div>
+
         <div class="card">
           <div class="toolbar">
             <h3 style="margin:0">{{ t('log.title') }}</h3>
             <span class="grow"></span>
-            <input v-model="logFilter.domain" :placeholder="t('log.filterDomain')" style="width: 200px">
-            <select v-model="logFilter.source">
-              <option value="">{{ t('log.allSources') }}</option>
-              <option value="fixed">{{ t('source.fixed') }}</option>
-              <option value="cache">{{ t('source.cache') }}</option>
-              <option value="forward">{{ t('source.forward') }}</option>
+            <select v-model="logFilter.rangePreset" :aria-label="t('log.timeRange')">
+              <option value="">{{ t('log.rangeAll') }}</option>
+              <option value="15m">{{ t('log.range15m') }}</option>
+              <option value="1h">{{ t('log.range1h') }}</option>
+              <option value="6h">{{ t('log.range6h') }}</option>
+              <option value="24h">{{ t('log.range24h') }}</option>
+              <option value="7d">{{ t('log.range7d') }}</option>
+              <option value="custom">{{ t('log.rangeCustom') }}</option>
             </select>
+            <template v-if="logFilter.rangePreset === 'custom'">
+              <input type="datetime-local" v-model="logFilter.customFrom" :aria-label="t('log.rangeFrom')" style="width: 175px">
+              <span style="color:var(--muted)">&ndash;</span>
+              <input type="datetime-local" v-model="logFilter.customTo" :aria-label="t('log.rangeTo')" style="width: 175px">
+            </template>
+            <input v-model="logFilter.domain" :placeholder="t('log.filterDomain')" style="width: 200px">
             <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px">
               <span class="switch"><input type="checkbox" v-model="autoRefresh"><span class="slider"></span></span>
               <span class="live-dot" :class="{on: liveConnected && autoRefresh}" :title="liveStatusTitle"></span>
@@ -682,11 +765,39 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
           <div class="tbl-scroll">
             <table>
               <thead>
-                <tr><th>{{ t('log.time') }}</th><th>{{ t('log.client') }}</th><th>{{ t('log.domain') }}</th><th>{{ t('log.type') }}</th><th>{{ t('log.source') }}</th><th>{{ t('log.ruleUpstream') }}</th><th>{{ t('log.result') }}</th><th>{{ t('log.status') }}</th><th>{{ t('log.latency') }}</th></tr>
+                <tr>
+                  <th class="sortable" @click="toggleSort('logs','time')">{{ t('log.time') }}{{ sortIndicator('logs','time') }}</th>
+                  <th class="sortable" @click="toggleSort('logs','client')">
+                    {{ t('log.client') }}{{ sortIndicator('logs','client') }}
+                    <col-filter v-model="logFilter.client" :options="clientFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  </th>
+                  <th class="sortable" @click="toggleSort('logs','domain')">
+                    {{ t('log.domain') }}{{ sortIndicator('logs','domain') }}
+                    <col-filter v-model="logFilter.domain" :options="domainFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  </th>
+                  <th class="sortable" @click="toggleSort('logs','type')">
+                    {{ t('log.type') }}{{ sortIndicator('logs','type') }}
+                    <col-filter v-model="logFilter.type" :options="typeFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  </th>
+                  <th class="sortable" @click="toggleSort('logs','source')">
+                    {{ t('log.source') }}{{ sortIndicator('logs','source') }}
+                    <col-filter v-model="logFilter.source" :options="sourceFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  </th>
+                  <th class="sortable" @click="toggleSort('logs','rule')">
+                    {{ t('log.ruleUpstream') }}{{ sortIndicator('logs','rule') }}
+                    <col-filter v-model="logFilter.rule" :options="ruleFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  </th>
+                  <th class="sortable" @click="toggleSort('logs','result')">{{ t('log.result') }}{{ sortIndicator('logs','result') }}</th>
+                  <th class="sortable" @click="toggleSort('logs','status')">
+                    {{ t('log.status') }}{{ sortIndicator('logs','status') }}
+                    <col-filter v-model="logFilter.status" :options="statusFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  </th>
+                  <th class="sortable" @click="toggleSort('logs','latency')">{{ t('log.latency') }}{{ sortIndicator('logs','latency') }}</th>
+                </tr>
               </thead>
               <tbody>
-                <tr v-if="!visibleLogs.length"><td colspan="9" class="empty">{{ t('log.empty') }}</td></tr>
-                <tr v-for="(l, i) in visibleLogs" :key="l.seq || i">
+                <tr v-if="!sortedVisibleLogs.length"><td colspan="9" class="empty">{{ t('log.empty') }}</td></tr>
+                <tr v-for="(l, i) in sortedVisibleLogs" :key="l.seq || i">
                   <td>{{ fmtTime(l.t) }}</td>
                   <td>{{ l.client }}</td>
                   <td class="wrap">{{ l.domain }}</td>
@@ -696,6 +807,76 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                   <td class="wrap">{{ l.answers || '-' }}</td>
                   <td><span class="badge" :class="l.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(l.rcode) }}</span></td>
                   <td>{{ l.latencyMs }} ms</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Domains: full ranking -->
+      <section v-show="tab==='domains'">
+        <div class="card">
+          <div class="toolbar">
+            <h3 style="margin:0">{{ t('nav.domains') }}</h3>
+            <span class="grow"></span>
+            <input v-model="domainsSearch" :placeholder="t('analytics.searchDomains')" style="width: 220px">
+            <span class="count-badge">{{ analytics.topDomainCount }}</span>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th class="sortable" @click="toggleSort('domains','domain')">{{ t('log.domain') }}{{ sortIndicator('domains','domain') }}</th>
+                  <th class="sortable" @click="toggleSort('domains','count')">{{ t('analytics.queries') }}{{ sortIndicator('domains','count') }}</th>
+                  <th class="sortable" @click="toggleSort('domains','failures')">
+                    {{ t('analytics.colFailures') }}{{ sortIndicator('domains','failures') }}
+                    <col-filter v-model="domainsFailuresFilter" :options="failuresFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!filteredDomains.length"><td colspan="3" class="empty">{{ t('analytics.empty') }}</td></tr>
+                <tr v-for="item in filteredDomains" :key="item.domain">
+                  <td class="wrap" style="font-weight:600">{{ item.domain }}</td>
+                  <td>{{ item.count }}</td>
+                  <td>{{ item.failures ? t('analytics.failureCount', {n: item.failures}) : t('analytics.allSuccessful') }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Clients: full ranking -->
+      <section v-show="tab==='clients'">
+        <div class="card">
+          <div class="toolbar">
+            <h3 style="margin:0">{{ t('nav.clients') }}</h3>
+            <span class="grow"></span>
+            <input v-model="clientsSearch" :placeholder="t('analytics.searchClients')" style="width: 220px">
+            <span class="count-badge">{{ analytics.activeClientCount }}</span>
+          </div>
+          <div class="tbl-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th class="sortable" @click="toggleSort('clients','client')">{{ t('log.client') }}{{ sortIndicator('clients','client') }}</th>
+                  <th class="sortable" @click="toggleSort('clients','count')">{{ t('analytics.queries') }}{{ sortIndicator('clients','count') }}</th>
+                  <th class="sortable" @click="toggleSort('clients','failures')">
+                    {{ t('analytics.colFailures') }}{{ sortIndicator('clients','failures') }}
+                    <col-filter v-model="clientsFailuresFilter" :options="failuresFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  </th>
+                  <th class="sortable" @click="toggleSort('clients','lastSeen')">{{ t('analytics.colLastSeen') }}{{ sortIndicator('clients','lastSeen') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!filteredClients.length"><td colspan="4" class="empty">{{ t('analytics.noActiveClients') }}</td></tr>
+                <tr v-for="item in filteredClients" :key="item.client">
+                  <td style="font-weight:600">{{ item.client }}</td>
+                  <td>{{ item.count }}</td>
+                  <td>{{ item.failures ? t('analytics.failureCount', {n: item.failures}) : t('analytics.allSuccessful') }}</td>
+                  <td>{{ fmtAgo(item.lastSeen) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -804,11 +985,6 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 <div class="hint adjusted" v-if="fieldAdjusted.forwardTimeoutMs">{{ t('settings.adjustedTo', {value: settings.forwardTimeoutMs}) }}</div>
               </div>
               <div class="form-row">
-                <label>{{ t('settings.maxCache') }}</label>
-                <input type="number" v-model.number="settings.cacheMaxEntries" :class="{'invalid-adjusted': fieldAdjusted.cacheMaxEntries}">
-                <div class="hint adjusted" v-if="fieldAdjusted.cacheMaxEntries">{{ t('settings.adjustedTo', {value: settings.cacheMaxEntries}) }}</div>
-              </div>
-              <div class="form-row">
                 <label>{{ t('settings.ttlRange') }}</label>
                 <div style="display:flex;gap:8px">
                   <input type="number" v-model.number="settings.ttlMin" :class="{'invalid-adjusted': fieldAdjusted.ttlMin}">
@@ -818,9 +994,10 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 <div class="hint adjusted" v-if="fieldAdjusted.ttlMin || fieldAdjusted.ttlMax">{{ t('settings.adjustedTo', {value: settings.ttlMin + ' / ' + settings.ttlMax}) }}</div>
               </div>
               <div class="form-row">
-                <label>{{ t('settings.logCapacity') }}</label>
-                <input type="number" v-model.number="settings.logCapacity" :class="{'invalid-adjusted': fieldAdjusted.logCapacity}">
-                <div class="hint adjusted" v-if="fieldAdjusted.logCapacity">{{ t('settings.adjustedTo', {value: settings.logCapacity}) }}</div>
+                <label>{{ t('settings.logRetentionDays') }}</label>
+                <input type="number" v-model.number="settings.logRetentionDays" :class="{'invalid-adjusted': fieldAdjusted.logRetentionDays}">
+                <div class="hint">{{ t('settings.logRetentionHint') }}</div>
+                <div class="hint adjusted" v-if="fieldAdjusted.logRetentionDays">{{ t('settings.adjustedTo', {value: settings.logRetentionDays}) }}</div>
               </div>
               <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.saveSettings') }}</button>
             </div>
@@ -981,7 +1158,48 @@ const { createApp } = Vue;
 
 function tabFromHash() {
   const h = (location.hash || '').replace(/^#\/?/, '');
-  return ['dashboard', 'rules', 'system', 'settings'].includes(h) ? h : 'dashboard';
+  return ['dashboard', 'querylog', 'domains', 'clients', 'rules', 'system', 'settings'].includes(h) ? h : 'dashboard';
+}
+
+// Per-table column accessors for the generic sortRows() below; 'logs' covers
+// the composite Rule/Upstream and Result/Status columns that have no single
+// matching field on a log entry.
+const SORT_ACCESSORS = {
+  logs: {
+    time: l => l.t,
+    client: l => l.client || '',
+    domain: l => l.domain || '',
+    type: l => l.type || '',
+    source: l => l.source || '',
+    rule: l => l.rule || l.upstream || l.error || '',
+    result: l => l.answers || '',
+    status: l => l.rcode,
+    latency: l => l.latencyMs,
+  },
+  domains: {
+    domain: d => d.domain,
+    count: d => d.count,
+    failures: d => d.failures,
+  },
+  clients: {
+    client: c => c.client,
+    count: c => c.count,
+    failures: c => c.failures,
+    lastSeen: c => c.lastSeen,
+  },
+};
+
+function sortRows(items, sort, table) {
+  if (!sort.key) return items;
+  const accessor = SORT_ACCESSORS[table][sort.key];
+  const dir = sort.dir === 'asc' ? 1 : -1;
+  return [...items].sort((a, b) => {
+    const av = accessor(a);
+    const bv = accessor(b);
+    if (typeof av === 'string' || typeof bv === 'string')
+      return String(av).localeCompare(String(bv)) * dir;
+    return ((av ?? 0) - (bv ?? 0)) * dir;
+  });
 }
 
 const I18N = {
@@ -1016,6 +1234,9 @@ const I18N = {
     'setup.passwordMismatch': 'Passwords do not match',
     'login.sessionExpired': 'Session expired, please sign in again',
     'nav.dashboard': 'Dashboard',
+    'nav.queryLog': 'Query Log',
+    'nav.domains': 'Domains',
+    'nav.clients': 'Clients',
     'nav.rules': 'Rules',
     'nav.system': 'System Logs',
     'nav.settings': 'Settings',
@@ -1069,6 +1290,14 @@ const I18N = {
     'analytics.allSuccessful': 'All successful',
     'analytics.empty': 'No query data in this window',
     'analytics.noActiveClients': 'No active DNS clients',
+    'analytics.viewAll': 'View all ({n}) →',
+    'analytics.searchDomains': 'Search domains',
+    'analytics.searchClients': 'Search clients',
+    'analytics.filterAll': 'All',
+    'analytics.filterHasFailures': 'Has failures',
+    'analytics.filterNoFailures': 'No failures',
+    'analytics.colFailures': 'Failures',
+    'analytics.colLastSeen': 'Last Seen',
     'analytics.memoryNote': 'Based on {n} retained in-memory queries; resets when the service restarts.',
     'analytics.chartAria': '{metric} over the last {n} minutes',
     'analytics.justNow': 'just now',
@@ -1082,12 +1311,31 @@ const I18N = {
     'test.rule': 'Rule',
     'test.upstream': 'Upstream',
     'log.title': 'Query Log',
+    'log.timeRange': 'Time range',
+    'log.rangeAll': 'All time',
+    'log.range15m': 'Last 15 minutes',
+    'log.range1h': 'Last 1 hour',
+    'log.range6h': 'Last 6 hours',
+    'log.range24h': 'Last 24 hours',
+    'log.range7d': 'Last 7 days',
+    'log.rangeCustom': 'Custom range',
+    'log.rangeFrom': 'From',
+    'log.rangeTo': 'To',
     'log.filterDomain': 'Filter by domain',
     'log.allSources': 'All sources',
+    'log.allStatus': 'All statuses',
+    'log.allTypes': 'All types',
+    'log.allClients': 'All clients',
+    'log.allDomains': 'All domains',
+    'log.allRules': 'All rules/upstreams',
+    'log.statusFail': 'Failed',
+    'filter.reset': 'Reset',
+    'filter.confirm': 'Confirm',
     'log.autoRefresh': 'Live updates',
     'log.liveConnected': 'Live stream connected',
     'log.liveFallback': 'Stream disconnected; using periodic refresh',
     'log.livePaused': 'Live updates paused',
+    'log.viewAll': 'View full log →',
     'syslog.auditTitle': 'Operation Log',
     'syslog.consoleTitle': 'Console Output',
     'syslog.type': 'Type',
@@ -1172,10 +1420,10 @@ const I18N = {
     'settings.addUpstream': '+ Add upstream',
     'settings.cacheLogging': 'Cache & Logging',
     'settings.forwardTimeout': 'Forward timeout (ms, 500-30000)',
-    'settings.maxCache': 'Max cache entries (LRU eviction)',
     'settings.ttlRange': 'Cache TTL min / max (seconds)',
     'settings.ttlHint': 'Actual cache time = the answer\'s minimum TTL, clamped to this range',
-    'settings.logCapacity': 'Query log capacity',
+    'settings.logRetentionDays': 'Query log retention (days)',
+    'settings.logRetentionHint': 'Entries older than this are dropped automatically; 0 disables time-based trimming (a safety ceiling on total entries always applies)',
     'settings.saveSettings': 'Save Settings',
     'settings.saving': 'Saving...',
     'settings.portsTitle': 'Service Ports',
@@ -1249,6 +1497,9 @@ const I18N = {
     'setup.passwordMismatch': '两次输入的密码不一致',
     'login.sessionExpired': '会话已过期，请重新登录',
     'nav.dashboard': '仪表盘',
+    'nav.queryLog': '查询日志',
+    'nav.domains': '域名',
+    'nav.clients': '客户端',
     'nav.rules': '解析规则',
     'nav.system': '系统日志',
     'nav.settings': '设置',
@@ -1302,6 +1553,14 @@ const I18N = {
     'analytics.allSuccessful': '全部成功',
     'analytics.empty': '该时间段暂无查询数据',
     'analytics.noActiveClients': '暂无活跃 DNS 客户端',
+    'analytics.viewAll': '查看全部（{n}）→',
+    'analytics.searchDomains': '搜索域名',
+    'analytics.searchClients': '搜索客户端',
+    'analytics.filterAll': '全部',
+    'analytics.filterHasFailures': '有失败',
+    'analytics.filterNoFailures': '无失败',
+    'analytics.colFailures': '失败次数',
+    'analytics.colLastSeen': '最近查询',
     'analytics.memoryNote': '基于内存中保留的 {n} 条查询，服务重启后重新统计。',
     'analytics.chartAria': '最近 {n} 分钟的{metric}',
     'analytics.justNow': '刚刚',
@@ -1315,12 +1574,31 @@ const I18N = {
     'test.rule': '规则',
     'test.upstream': '上游',
     'log.title': '查询日志',
+    'log.timeRange': '时间范围',
+    'log.rangeAll': '全部时间',
+    'log.range15m': '最近 15 分钟',
+    'log.range1h': '最近 1 小时',
+    'log.range6h': '最近 6 小时',
+    'log.range24h': '最近 24 小时',
+    'log.range7d': '最近 7 天',
+    'log.rangeCustom': '自定义范围',
+    'log.rangeFrom': '起始时间',
+    'log.rangeTo': '结束时间',
     'log.filterDomain': '按域名过滤',
     'log.allSources': '全部来源',
+    'log.allStatus': '全部状态',
+    'log.allTypes': '全部类型',
+    'log.allClients': '全部客户端',
+    'log.allDomains': '全部域名',
+    'log.allRules': '全部规则/上游',
+    'log.statusFail': '失败',
+    'filter.reset': '重置',
+    'filter.confirm': '确定',
     'log.autoRefresh': '实时更新',
     'log.liveConnected': '实时数据流已连接',
     'log.liveFallback': '数据流已断开，正在定时刷新',
     'log.livePaused': '实时更新已暂停',
+    'log.viewAll': '查看完整日志 →',
     'syslog.auditTitle': '操作日志',
     'syslog.consoleTitle': 'Console 输出',
     'syslog.type': '类型',
@@ -1405,10 +1683,10 @@ const I18N = {
     'settings.addUpstream': '+ 添加上游',
     'settings.cacheLogging': '缓存与日志',
     'settings.forwardTimeout': '单次转发超时（毫秒，500-30000）',
-    'settings.maxCache': '缓存最大条目数（LRU 淘汰）',
     'settings.ttlRange': '缓存 TTL 下限 / 上限（秒）',
     'settings.ttlHint': '实际缓存时长 = 应答最小 TTL，并夹在该区间内',
-    'settings.logCapacity': '查询日志保留条数',
+    'settings.logRetentionDays': '查询日志保留天数',
+    'settings.logRetentionHint': '超过该天数的记录会自动清除；设为 0 可关闭按时间清理（仍会有内部条数安全上限）',
     'settings.saveSettings': '保存设置',
     'settings.saving': '保存中...',
     'settings.portsTitle': '服务端口',
@@ -1453,7 +1731,7 @@ const I18N = {
   },
 };
 
-createApp({
+const app = createApp({
   data() {
     const saved = localStorage.getItem('kaven_dns_lang');
     const locale = saved === 'zh' || saved === 'en'
@@ -1473,22 +1751,29 @@ createApp({
       stats: {}, cacheInfo: {}, systemInfo: {}, dnsStatus: null,
       analytics: {
         trend: { windowMinutes: 60, bucketMinutes: 5, buckets: [] },
-        topDomains: [], activeClients: [], activeClientCount: 0,
+        topDomains: [], activeClients: [], topDomainCount: 0, activeClientCount: 0,
         activeMinutes: 5, sampledQueries: 0, retainedQueries: 0,
       },
       trendMetric: 'total',
       exited: false,
       logs: [], filteredLogs: [],
       syslog: { console: [], events: [] },
-      logFilter: { domain: '', source: '' },
+      logFilter: { domain: '', source: '', status: '', type: '', client: '', rule: '', rangePreset: '', customFrom: '', customTo: '' },
+      domainsSearch: '', clientsSearch: '',
+      domainsFailuresFilter: '', clientsFailuresFilter: '',
+      tableSort: {
+        logs: { key: null, dir: 'desc' },
+        domains: { key: 'count', dir: 'desc' },
+        clients: { key: 'count', dir: 'desc' },
+      },
       autoRefresh: true, liveConnected: false,
       rules: [],
       ruleModal: { visible: false, editing: false, saving: false, errors: [], form: {} },
       importModal: { visible: false, saving: false, mode: 'merge', parsed: null, errors: [] },
       confirmBox: { visible: false, text: '', action: null, danger: false },
       settings: {
-        upstreams: [], forwardTimeoutMs: 3000, cacheMaxEntries: 10000,
-        ttlMin: 10, ttlMax: 3600, logCapacity: 1000, dnsPort: 53, webPort: 8080,
+        upstreams: [], forwardTimeoutMs: 3000,
+        ttlMin: 10, ttlMax: 3600, logRetentionDays: 7, dnsPort: 53, webPort: 8080,
         bindAddress: '0.0.0.0', webBindAddress: '0.0.0.0', sessionTtlHours: 24,
       },
       savingSettings: false, savingPw: false,
@@ -1517,8 +1802,70 @@ createApp({
     visibleLogs() {
       return this.logFilterActive ? this.filteredLogs : this.logs;
     },
+    sortedVisibleLogs() {
+      return sortRows(this.visibleLogs, this.tableSort.logs, 'logs');
+    },
+    filteredDomains() {
+      const q = this.domainsSearch.trim().toLowerCase();
+      let items = q ? this.analytics.topDomains.filter(d => d.domain.toLowerCase().includes(q)) : this.analytics.topDomains;
+      if (this.domainsFailuresFilter === 'yes') items = items.filter(d => d.failures);
+      else if (this.domainsFailuresFilter === 'no') items = items.filter(d => !d.failures);
+      return sortRows(items, this.tableSort.domains, 'domains');
+    },
+    filteredClients() {
+      const q = this.clientsSearch.trim().toLowerCase();
+      let items = q ? this.analytics.activeClients.filter(c => c.client.toLowerCase().includes(q)) : this.analytics.activeClients;
+      if (this.clientsFailuresFilter === 'yes') items = items.filter(c => c.failures);
+      else if (this.clientsFailuresFilter === 'no') items = items.filter(c => !c.failures);
+      return sortRows(items, this.tableSort.clients, 'clients');
+    },
+    sourceFilterOptions() {
+      return [
+        { value: '', label: this.t('log.allSources') },
+        { value: 'fixed', label: this.t('source.fixed') },
+        { value: 'cache', label: this.t('source.cache') },
+        { value: 'forward', label: this.t('source.forward') },
+      ];
+    },
+    statusFilterOptions() {
+      return [
+        { value: '', label: this.t('log.allStatus') },
+        { value: 'ok', label: this.t('rcode.ok') },
+        { value: 'fail', label: this.t('log.statusFail') },
+      ];
+    },
+    typeFilterOptions() {
+      return [
+        { value: '', label: this.t('log.allTypes') },
+        { value: 'A', label: 'A' },
+        { value: 'AAAA', label: 'AAAA' },
+        { value: 'CNAME', label: 'CNAME' },
+      ];
+    },
+    clientFilterOptions() {
+      const values = [...new Set(this.logs.map(l => l.client).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      return [{ value: '', label: this.t('log.allClients') }, ...values.map(v => ({ value: v, label: v }))];
+    },
+    domainFilterOptions() {
+      const values = [...new Set(this.logs.map(l => l.domain).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      return [{ value: '', label: this.t('log.allDomains') }, ...values.map(v => ({ value: v, label: v }))];
+    },
+    ruleFilterOptions() {
+      const values = [...new Set(this.logs.map(l => l.rule || l.upstream || l.error || '').filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      return [{ value: '', label: this.t('log.allRules') }, ...values.map(v => ({ value: v, label: v }))];
+    },
+    failuresFilterOptions() {
+      return [
+        { value: '', label: this.t('analytics.filterAll') },
+        { value: 'yes', label: this.t('analytics.filterHasFailures') },
+        { value: 'no', label: this.t('analytics.filterNoFailures') },
+      ];
+    },
+    recentLogs() {
+      return this.logs.slice(0, 20);
+    },
     logFilterActive() {
-      return Boolean(this.logFilter.domain.trim() || this.logFilter.source);
+      return Boolean(this.logFilter.domain.trim() || this.logFilter.source || this.logFilter.status || this.logFilter.type || this.logFilter.client || this.logFilter.rule || this.logFilter.rangePreset);
     },
     valuePlaceholder() {
       const t = this.ruleModal.form.type;
@@ -1573,6 +1920,12 @@ createApp({
       }));
       return { points, linePath, areaPath, ticks };
     },
+    dashboardTopDomains() {
+      return this.analytics.topDomains.slice(0, 6);
+    },
+    dashboardActiveClients() {
+      return this.analytics.activeClients.slice(0, 6);
+    },
   },
   watch: {
     autoRefresh(enabled) {
@@ -1588,6 +1941,27 @@ createApp({
       this.scheduleLogFilterRefresh();
     },
     'logFilter.source'() {
+      this.scheduleLogFilterRefresh();
+    },
+    'logFilter.status'() {
+      this.scheduleLogFilterRefresh();
+    },
+    'logFilter.type'() {
+      this.scheduleLogFilterRefresh();
+    },
+    'logFilter.client'() {
+      this.scheduleLogFilterRefresh();
+    },
+    'logFilter.rule'() {
+      this.scheduleLogFilterRefresh();
+    },
+    'logFilter.rangePreset'() {
+      this.scheduleLogFilterRefresh();
+    },
+    'logFilter.customFrom'() {
+      this.scheduleLogFilterRefresh();
+    },
+    'logFilter.customTo'() {
       this.scheduleLogFilterRefresh();
     },
   },
@@ -1638,6 +2012,12 @@ createApp({
         this._liveReconnectDelay = 1000;
         this._liveHealthySince = 0;
       }
+      // Relative presets ("last 1h", etc.) slide forward with the clock, not
+      // just when new entries arrive - re-apply locally so aged-out rows
+      // drop off even during a quiet period. No network round-trip needed:
+      // the server-side window was already fetched wide enough to cover it.
+      if (this.logFilter.rangePreset && this.logFilter.rangePreset !== 'custom')
+        this.filteredLogs = this.logs.filter(item => this.matchesLogFilter(item));
     }, 5000);
   },
   beforeUnmount() {
@@ -1824,7 +2204,7 @@ createApp({
       if (this._fallbackRefreshing) return;
       this._fallbackRefreshing = true;
       try {
-        if (this.tab === 'dashboard')
+        if (this.tab === 'dashboard' || this.tab === 'querylog' || this.tab === 'domains' || this.tab === 'clients')
           await Promise.allSettled([this.refreshStats(), this.refreshLogs()]);
         else if (this.tab === 'system')
           await this.loadSystemLog();
@@ -1992,10 +2372,33 @@ createApp({
         if (this.logFilterActive) await this.refreshFilteredLogs();
       } catch (_) { /* silent polling failure */ }
     },
+    // Not a computed prop: presets are relative to "now", so this must be
+    // re-evaluated fresh on every call rather than cached.
+    computeLogTimeRange() {
+      const preset = this.logFilter.rangePreset;
+      if (!preset) return { since: 0, until: 0 };
+      if (preset === 'custom') {
+        const since = this.logFilter.customFrom ? new Date(this.logFilter.customFrom).getTime() : 0;
+        const until = this.logFilter.customTo ? new Date(this.logFilter.customTo).getTime() : 0;
+        return { since: Number.isFinite(since) ? since : 0, until: Number.isFinite(until) ? until : 0 };
+      }
+      const durationsMs = { '15m': 15 * 60000, '1h': 3600000, '6h': 6 * 3600000, '24h': 24 * 3600000, '7d': 7 * 86400000 };
+      const ms = durationsMs[preset] || 0;
+      return { since: ms ? Date.now() - ms : 0, until: 0 };
+    },
     matchesLogFilter(log) {
       const domain = this.logFilter.domain.trim().toLowerCase();
       if (domain && !String(log.domain || '').toLowerCase().includes(domain)) return false;
-      return !this.logFilter.source || log.source === this.logFilter.source;
+      if (this.logFilter.source && log.source !== this.logFilter.source) return false;
+      if (this.logFilter.status === 'ok' && log.rcode !== 0) return false;
+      if (this.logFilter.status === 'fail' && log.rcode === 0) return false;
+      if (this.logFilter.type && log.type !== this.logFilter.type) return false;
+      if (this.logFilter.client && log.client !== this.logFilter.client) return false;
+      if (this.logFilter.rule && (log.rule || log.upstream || log.error || '') !== this.logFilter.rule) return false;
+      const { since, until } = this.computeLogTimeRange();
+      if (since && log.t < since) return false;
+      if (until && log.t > until) return false;
+      return true;
     },
     scheduleLogFilterRefresh() {
       clearTimeout(this._logFilterTimer);
@@ -2010,14 +2413,33 @@ createApp({
     async refreshFilteredLogs() {
       const domain = this.logFilter.domain.trim();
       const source = this.logFilter.source;
+      const status = this.logFilter.status;
+      const type = this.logFilter.type;
+      const client = this.logFilter.client;
+      const rule = this.logFilter.rule;
+      const rangePreset = this.logFilter.rangePreset;
+      const customFrom = this.logFilter.customFrom;
+      const customTo = this.logFilter.customTo;
       const liveVersion = this._liveDataVersion || 0;
-      if (!domain && !source) return;
+      if (!domain && !source && !status && !type && !client && !rule && !rangePreset) return;
+      const { since, until } = this.computeLogTimeRange();
       const params = new URLSearchParams({ limit: '200' });
       if (domain) params.set('domain', domain);
       if (source) params.set('source', source);
+      if (status) params.set('status', status);
+      if (type) params.set('type', type);
+      if (client) params.set('client', client);
+      if (rule) params.set('rule', rule);
+      if (since) params.set('since', String(since));
+      if (until) params.set('until', String(until));
       try {
         const data = await this.api('/api/logs?' + params.toString());
-        if (domain === this.logFilter.domain.trim() && source === this.logFilter.source) {
+        if (
+          domain === this.logFilter.domain.trim() && source === this.logFilter.source &&
+          status === this.logFilter.status && type === this.logFilter.type && client === this.logFilter.client &&
+          rule === this.logFilter.rule && rangePreset === this.logFilter.rangePreset &&
+          customFrom === this.logFilter.customFrom && customTo === this.logFilter.customTo
+        ) {
           this.filteredLogs = (this._liveDataVersion || 0) === liveVersion
             ? data.logs
             : this.mergeNewest(data.logs, this.filteredLogs, 200);
@@ -2188,9 +2610,8 @@ createApp({
         this.settings = {
           upstreams: [...c.upstreams],
           forwardTimeoutMs: c.forwardTimeoutMs,
-          cacheMaxEntries: c.cacheMaxEntries,
           ttlMin: c.ttlMin, ttlMax: c.ttlMax,
-          logCapacity: c.logCapacity,
+          logRetentionDays: c.logRetentionDays,
           dnsPort: c.dnsPort, webPort: c.webPort, bindAddress: c.bindAddress || '0.0.0.0',
           webBindAddress: c.webBindAddress || '0.0.0.0',
           sessionTtlHours: c.sessionTtlHours,
@@ -2208,9 +2629,8 @@ createApp({
         const body = {
           upstreams: this.settings.upstreams.map(s => s.trim()).filter(Boolean),
           forwardTimeoutMs: this.settings.forwardTimeoutMs,
-          cacheMaxEntries: this.settings.cacheMaxEntries,
           ttlMin: this.settings.ttlMin, ttlMax: this.settings.ttlMax,
-          logCapacity: this.settings.logCapacity,
+          logRetentionDays: this.settings.logRetentionDays,
           dnsPort: this.settings.dnsPort, webPort: this.settings.webPort,
           bindAddress: this.settings.bindAddress,
           webBindAddress: this.settings.webBindAddress, sessionTtlHours: this.settings.sessionTtlHours,
@@ -2326,6 +2746,19 @@ createApp({
       const max = Math.max(...items.map(item => item.count), 1);
       return `${Math.max(6, count / max * 100).toFixed(1)}%`;
     },
+    goTo(tabName) {
+      location.hash = '#/' + tabName;
+    },
+    toggleSort(table, key) {
+      const s = this.tableSort[table];
+      if (s.key === key) s.dir = s.dir === 'asc' ? 'desc' : 'asc';
+      else { s.key = key; s.dir = 'asc'; }
+    },
+    sortIndicator(table, key) {
+      const s = this.tableSort[table];
+      if (s.key !== key) return '';
+      return s.dir === 'asc' ? ' ▲' : ' ▼';
+    },
     percentWidth(value, total) {
       const percent = total > 0 ? Number(value || 0) / total * 100 : 0;
       return `${Math.max(0, Math.min(100, percent)).toFixed(1)}%`;
@@ -2346,7 +2779,89 @@ createApp({
       this._toastTimer = setTimeout(() => { this.toast.show = false; }, 2500);
     },
   },
-}).mount('#app');
+});
+
+// Column header filter: a funnel icon that opens a popover of radio options
+// with Reset/Confirm actions (teleported to <body> so it isn't clipped by a
+// scrolling table ancestor).
+app.component('col-filter', {
+  props: {
+    modelValue: { type: String, default: '' },
+    options: { type: Array, required: true },
+    resetLabel: { type: String, required: true },
+    confirmLabel: { type: String, required: true },
+  },
+  emits: ['update:modelValue'],
+  data() {
+    return { open: false, pending: this.modelValue, style: {} };
+  },
+  computed: {
+    active() { return Boolean(this.modelValue); },
+  },
+  watch: {
+    modelValue(v) { if (!this.open) this.pending = v; },
+  },
+  mounted() {
+    this._onDocMouseDown = e => {
+      if (!this.open) return;
+      const btn = this.$refs.btn;
+      const pop = this.$refs.pop;
+      if ((btn && btn.contains(e.target)) || (pop && pop.contains(e.target))) return;
+      this.open = false;
+    };
+    this._onScroll = () => { this.open = false; };
+    document.addEventListener('mousedown', this._onDocMouseDown, true);
+    window.addEventListener('scroll', this._onScroll, true);
+    window.addEventListener('resize', this._onScroll);
+  },
+  beforeUnmount() {
+    document.removeEventListener('mousedown', this._onDocMouseDown, true);
+    window.removeEventListener('scroll', this._onScroll, true);
+    window.removeEventListener('resize', this._onScroll);
+  },
+  methods: {
+    toggle() {
+      if (this.open) {
+        this.open = false;
+        return;
+      }
+      this.pending = this.modelValue;
+      const rect = this.$refs.btn.getBoundingClientRect();
+      this.style = { top: (rect.bottom + 4) + 'px', left: rect.left + 'px' };
+      this.open = true;
+    },
+    confirm() {
+      this.$emit('update:modelValue', this.pending);
+      this.open = false;
+    },
+    reset() {
+      this.pending = '';
+      this.$emit('update:modelValue', '');
+      this.open = false;
+    },
+  },
+  template: `
+    <span class="col-filter">
+      <button type="button" ref="btn" class="col-filter-icon" :class="{active}" @click.stop="toggle">\u25bd</button>
+      <teleport to="body">
+        <div v-if="open" ref="pop" class="col-filter-pop" :style="style" @click.stop>
+          <div class="col-filter-options">
+            <label v-for="opt in options" :key="opt.value" class="col-filter-opt">
+              <input type="radio" :value="opt.value" v-model="pending">
+              <span>{{ opt.label }}</span>
+            </label>
+          </div>
+          <div class="col-filter-actions">
+            <button type="button" class="btn secondary sm" @click="reset">{{ resetLabel }}</button>
+            <button type="button" class="btn sm" @click="confirm">{{ confirmLabel }}</button>
+          </div>
+        </div>
+      </teleport>
+    </span>
+  `,
+});
+
+app.mount('#app');
 </script>
 </body>
 </html>

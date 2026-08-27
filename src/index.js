@@ -4,7 +4,7 @@ const net = require('net');
 
 const { DATA_DIR, RULES_FILE, SESSIONS_FILE, loadConfig, verifyPassword } = require('./config');
 const { RulesStore } = require('./store/rules');
-const { LogStore } = require('./store/logs');
+const { LogStore, HARD_CAP } = require('./store/logs');
 const { createSysLog } = require('./store/syslog');
 const { DnsCache } = require('./dns/cache');
 const { Resolver } = require('./dns/resolver');
@@ -21,8 +21,8 @@ async function main() {
   const { config } = loadConfig();
 
   const rulesStore = new RulesStore(RULES_FILE);
-  const logs = new LogStore(config.logCapacity);
-  const cache = new DnsCache(config.cacheMaxEntries);
+  const logs = new LogStore(HARD_CAP, config.logRetentionDays);
+  const cache = new DnsCache(); // fixed size (DnsCache's own default); not user-configurable
   const resolver = new Resolver({ rulesStore, cache, getConfig: () => config });
   const dns = createDnsServers({ resolver, logs, port: config.dnsPort, address: config.bindAddress });
   const auth = createAuth({

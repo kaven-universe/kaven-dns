@@ -4,9 +4,18 @@
  * Query log (ring buffer, drops oldest when full) + aggregate stats.
  * Logs are kept in memory only and reset on restart.
  */
+// Hard ceiling on retained entries, independent of the configured retention
+// window - not user-configurable. Purely a safety net bounding worst-case
+// memory if actual query volume is far higher than the retention window
+// assumes; ~200000 entries is well under 200MB and should not bind for any
+// realistic deployment.
+const HARD_CAP = 200000;
+
 class LogStore {
-  constructor(capacity = 1000) {
+  constructor(capacity = HARD_CAP, retentionDays = 0, clock = Date.now) {
     this.capacity = capacity;
+    this.retentionMs = retentionDays > 0 ? retentionDays * 24 * 60 * 60 * 1000 : 0;
+    this.clock = clock;
     this.entries = [];
     this.stats = this.resetStats();
     this.sequence = 0;
@@ -27,9 +36,19 @@ class LogStore {
     };
   }
 
-  setCapacity(n) {
-    this.capacity = n;
-    if (this.entries.length > n) this.entries.splice(0, this.entries.length - n);
+  // 0 disables time-based trimming; entries are then bounded by capacity alone.
+  setRetentionDays(days) {
+    this.retentionMs = days > 0 ? days * 24 * 60 * 60 * 1000 : 0;
+    this.trimExpired();
+  }
+
+  // Entries are appended in order, so expired ones are always a prefix.
+  trimExpired() {
+    if (!this.retentionMs) return;
+    const cutoff = this.clock() - this.retentionMs;
+    let i = 0;
+    while (i < this.entries.length && this.entries[i].t < cutoff) i++;
+    if (i > 0) this.entries.splice(0, i);
   }
 
   record(entry) {
@@ -37,6 +56,7 @@ class LogStore {
     this.entries.push(logged);
     if (this.entries.length > this.capacity)
       this.entries.splice(0, this.entries.length - this.capacity);
+    this.trimExpired();
 
     const s = this.stats;
     s.total++;
@@ -61,13 +81,20 @@ class LogStore {
     return () => this.listeners.delete(listener);
   }
 
-  list({ limit = 200, domain = '', source = '' } = {}) {
+  list({ limit = 200, domain = '', source = '', status = '', type = '', client = '', rule = '', since = 0, until = 0 } = {}) {
     const d = domain.trim().toLowerCase();
     const out = [];
     for (let i = this.entries.length - 1; i >= 0 && out.length < limit; i--) {
       const e = this.entries[i];
       if (d && !e.domain.includes(d)) continue;
       if (source && e.source !== source) continue;
+      if (status === 'ok' && e.rcode !== 0) continue;
+      if (status === 'fail' && e.rcode === 0) continue;
+      if (type && e.type !== type) continue;
+      if (client && e.client !== client) continue;
+      if (rule && (e.rule || e.upstream || e.error || '') !== rule) continue;
+      if (since && e.t < since) continue;
+      if (until && e.t > until) continue;
       out.push(e);
     }
     return out;
@@ -84,7 +111,10 @@ class LogStore {
     };
   }
 
-  getAnalytics({ now = Date.now(), trendMinutes = 60, bucketMinutes = 5, activeMinutes = 5, limit = 6 } = {}) {
+  // `limit` bounds the ranked lists sent to the dashboard; 500 is high enough
+  // to be "complete" for realistic traffic while protecting the live stream
+  // from a pathological number of distinct domains/clients.
+  getAnalytics({ now = Date.now(), trendMinutes = 60, bucketMinutes = 5, activeMinutes = 5, limit = 500 } = {}) {
     const bucketMs = bucketMinutes * 60 * 1000;
     const bucketCount = Math.ceil(trendMinutes / bucketMinutes);
     const windowEnd = (Math.floor(now / bucketMs) + 1) * bucketMs;
@@ -154,6 +184,7 @@ class LogStore {
       },
       topDomains,
       activeClients,
+      topDomainCount: domains.size,
       activeClientCount: clients.size,
       activeMinutes,
       sampledQueries,
@@ -167,4 +198,4 @@ class LogStore {
   }
 }
 
-module.exports = { LogStore };
+module.exports = { LogStore, HARD_CAP };

@@ -39,10 +39,9 @@ test('sanitize falls back to defaults for invalid ports, addresses and upstreams
     bindAddress: 'not-an-address',
     webBindAddress: '10.0.0.5',
     forwardTimeoutMs: 1,
-    cacheMaxEntries: -5,
     ttlMin: 5,
     ttlMax: 2,
-    logCapacity: 50,
+    logRetentionDays: -1,
     sessionTtlHours: 0,
     passwordHash: 12345,
   });
@@ -53,12 +52,11 @@ test('sanitize falls back to defaults for invalid ports, addresses and upstreams
   assert.equal(config.bindAddress, '0.0.0.0');
   assert.equal(config.webBindAddress, '10.0.0.5');
   assert.equal(config.forwardTimeoutMs, 3000);
-  assert.equal(config.cacheMaxEntries, 10000);
   assert.equal(config.ttlMin, 5);
   // ttlMax below the (already-clamped) ttlMin fails the range check and
   // resets to the default rather than clamping up to ttlMin.
   assert.equal(config.ttlMax, 3600);
-  assert.equal(config.logCapacity, 1000);
+  assert.equal(config.logRetentionDays, 7);
   assert.equal(config.sessionTtlHours, 24);
   assert.equal(config.passwordHash, '12345');
 });
@@ -71,10 +69,9 @@ test('sanitize keeps valid values unchanged', () => {
     bindAddress: '127.0.0.1',
     webBindAddress: '::1',
     forwardTimeoutMs: 2000,
-    cacheMaxEntries: 500,
     ttlMin: 20,
     ttlMax: 300,
-    logCapacity: 2000,
+    logRetentionDays: 0,
     sessionTtlHours: 48,
     passwordHash: 'abc',
   });
@@ -85,10 +82,9 @@ test('sanitize keeps valid values unchanged', () => {
   assert.equal(config.bindAddress, '127.0.0.1');
   assert.equal(config.webBindAddress, '::1');
   assert.equal(config.forwardTimeoutMs, 2000);
-  assert.equal(config.cacheMaxEntries, 500);
   assert.equal(config.ttlMin, 20);
   assert.equal(config.ttlMax, 300);
-  assert.equal(config.logCapacity, 2000);
+  assert.equal(config.logRetentionDays, 0);
   assert.equal(config.sessionTtlHours, 48);
 });
 

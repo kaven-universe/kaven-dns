@@ -335,6 +335,12 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
         limit,
         domain: String(req.query.domain || ''),
         source: String(req.query.source || ''),
+        status: String(req.query.status || ''),
+        type: String(req.query.type || ''),
+        client: String(req.query.client || ''),
+        rule: String(req.query.rule || ''),
+        since: Number(req.query.since) || 0,
+        until: Number(req.query.until) || 0,
       }),
     });
   });
@@ -398,7 +404,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     }
 
     const nums = {};
-    for (const key of ['forwardTimeoutMs', 'cacheMaxEntries', 'ttlMin', 'ttlMax', 'logCapacity']) {
+    for (const key of ['forwardTimeoutMs', 'ttlMin', 'ttlMax', 'logRetentionDays']) {
       if (body[key] !== undefined) {
         const n = Number(body[key]);
         if (!Number.isFinite(n)) errors.push(tr('config.must_be_number', { key }));
@@ -469,15 +475,11 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     if (body._upstreams) config.upstreams = body._upstreams;
     const old = { ...config };
     if (nums.forwardTimeoutMs !== undefined) config.forwardTimeoutMs = nums.forwardTimeoutMs;
-    if (nums.cacheMaxEntries !== undefined) {
-      config.cacheMaxEntries = nums.cacheMaxEntries;
-      cache.setMaxEntries(nums.cacheMaxEntries);
-    }
     if (nums.ttlMin !== undefined) config.ttlMin = nums.ttlMin;
     if (nums.ttlMax !== undefined) config.ttlMax = nums.ttlMax;
-    if (nums.logCapacity !== undefined) {
-      config.logCapacity = nums.logCapacity;
-      logs.setCapacity(nums.logCapacity);
+    if (nums.logRetentionDays !== undefined) {
+      config.logRetentionDays = nums.logRetentionDays;
+      logs.setRetentionDays(nums.logRetentionDays);
     }
     if (nums.sessionTtlHours !== undefined) config.sessionTtlHours = nums.sessionTtlHours;
     if (nums.dnsPort !== undefined) config.dnsPort = nums.dnsPort;
@@ -492,7 +494,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     // sanitize() clamps out-of-range numbers to valid bounds; tell the client
     // which requested values were silently adjusted so the UI can flag them.
     const adjusted = {};
-    for (const key of ['forwardTimeoutMs', 'cacheMaxEntries', 'ttlMin', 'ttlMax', 'logCapacity']) {
+    for (const key of ['forwardTimeoutMs', 'ttlMin', 'ttlMax', 'logRetentionDays']) {
       if (nums[key] !== undefined && nums[key] !== config[key]) adjusted[key] = config[key];
     }
 
@@ -512,7 +514,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
       if (webPortChanged) changed.push(`webPort=${nums.webPort}`);
       if (webBindChanged) changed.push(`webBind=${config.webBindAddress}`);
       if (passwordChanged) changed.push('password');
-      for (const key of ['forwardTimeoutMs', 'cacheMaxEntries', 'ttlMin', 'ttlMax', 'logCapacity', 'sessionTtlHours']) {
+      for (const key of ['forwardTimeoutMs', 'ttlMin', 'ttlMax', 'logRetentionDays', 'sessionTtlHours']) {
         if (nums[key] !== undefined && old[key] !== config[key]) changed.push(`${key}=${config[key]}`);
       }
       if (old.upstreams !== config.upstreams && body._upstreams) changed.push(`upstreams(${config.upstreams.length})`);

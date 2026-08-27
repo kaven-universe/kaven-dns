@@ -24,13 +24,12 @@ const DEFAULTS = {
   upstreams: ['223.5.5.5', '119.29.29.29', '114.114.114.114'],
   // Timeout for a single upstream forward (ms)
   forwardTimeoutMs: 3000,
-  // Maximum cache entries (LRU eviction)
-  cacheMaxEntries: 10000,
   // Cache TTL bounds (seconds); actual value is the answer's minimum TTL clamped here
   ttlMin: 10,
   ttlMax: 3600,
-  // Number of query log entries kept in memory
-  logCapacity: 1000,
+  // Days of query log history to retain. 0 disables time-based trimming
+  // (entries are then bounded only by LogStore's internal safety ceiling).
+  logRetentionDays: 7,
   // Web console session lifetime in hours; sessions are renewed on activity,
   // so this is effectively an idle timeout
   sessionTtlHours: 24,
@@ -105,10 +104,9 @@ function sanitize(config) {
   const webAddr = String(config.webBindAddress || '').trim();
   config.webBindAddress = net.isIP(webAddr) ? webAddr : DEFAULTS.webBindAddress;
   config.forwardTimeoutMs = clampInt(config.forwardTimeoutMs, 500, 30000, DEFAULTS.forwardTimeoutMs);
-  config.cacheMaxEntries = clampInt(config.cacheMaxEntries, 100, 1000000, DEFAULTS.cacheMaxEntries);
   config.ttlMin = clampInt(config.ttlMin, 1, 3600, DEFAULTS.ttlMin);
   config.ttlMax = clampInt(config.ttlMax, config.ttlMin, 86400, DEFAULTS.ttlMax);
-  config.logCapacity = clampInt(config.logCapacity, 100, 10000, DEFAULTS.logCapacity);
+  config.logRetentionDays = clampInt(config.logRetentionDays, 0, 30, DEFAULTS.logRetentionDays);
   config.sessionTtlHours = clampInt(config.sessionTtlHours, 1, 720, DEFAULTS.sessionTtlHours);
   config.passwordHash = String(config.passwordHash || '');
   return config;

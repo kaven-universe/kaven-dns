@@ -13,7 +13,10 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 - **Upstream racing**: default upstreams are queried in parallel and the fastest successful response wins; TC-flagged answers are automatically retried over TCP
 - **Bilingual Web console** (Chinese / English, simple password authentication):
   - Language switcher on the login page and in the header; the preference is remembered and auto-detected from the browser on first visit
-  - Dashboard: query volume, rule/cache/forward hits, failures, average latency, cache hit rate, 60-minute query/latency/failure trends, top domains, active clients, and a live query log (domain / source filters); server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version). Authenticated SSE streams batched live updates to visible consoles, with automatic reconnect and periodic REST fallback; analytics use the retained in-memory query window and reset on restart
+  - Dashboard: at-a-glance overview — query volume, rule/cache/forward hits, failures, average latency, cache hit rate, a top-6 preview of top domains / active clients, and the 20 most recent log entries; server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version)
+  - Query Log tab: a 60-minute query/latency/failure trend chart, plus the complete live query log as a sortable table (click any column header) with a domain search box, a time-range selector (last 15m/1h/6h/24h/7d, or a custom from/to range), and column-header filter popovers (funnel icon → pick a value → Reset/Confirm) on Domain, Client, Type, Source, Rule/Upstream and Status (OK or failed)
+  - Domains tab / Clients tab: the complete top-domains and active-clients rankings as sortable, searchable tables with the same column-header filter popover on Failures (all / has failures / no failures), each on its own page (not capped to the Dashboard's top-6 preview)
+  - Authenticated SSE streams batched live updates to visible consoles, with automatic reconnect and periodic REST fallback; analytics use the retained in-memory query window and reset on restart
   - Rules management: table + modal editor, enable toggle, remarks, import/export as JSON (merge by domains+type, or replace all)
   - Settings: upstream list, cache and log parameters, ports, password change, cache flush, resolve test
   - System Logs: operation/config-change audit trail plus the console output (what a hidden terminal would have shown), with a dark console viewer
@@ -118,9 +121,8 @@ A rule holds a group of domain patterns; a query matches the rule when it matche
 | `webBindAddress` | 0.0.0.0 | Web console bind address; e.g. `127.0.0.1` for local-only, or a LAN IP to serve the console on that interface |
 | `upstreams` | `223.5.5.5, 119.29.29.29, 114.114.114.114` | Default upstream group (`ip` or `ip:port`) |
 | `forwardTimeoutMs` | 3000 | Timeout per upstream forward |
-| `cacheMaxEntries` | 10000 | Max cache entries (LRU) |
 | `ttlMin` / `ttlMax` | 10 / 3600 | Cache TTL clamp range (seconds) |
-| `logCapacity` | 1000 | Query log entries kept in memory |
+| `logRetentionDays` | 7 | Days of query log history to retain; 0 disables time-based trimming. Entries are always additionally bounded by a fixed internal safety ceiling (200,000) regardless of this setting |
 | `sessionTtlHours` | 24 | Web console session validity in hours; renewed on activity (idle timeout) and persisted across restarts |
 
 Environment variables: `KAVEN_DNS_PORT` / `KAVEN_WEB_PORT` temporarily override the ports (useful for debugging); `KAVEN_DATA_DIR` relocates the data directory (defaults to `<repo>/data`).
@@ -139,7 +141,7 @@ Error messages are localized when an `Accept-Language: zh` (or `en`) header is s
 | GET/POST | `/api/rules` | List / create rules |
 | POST | `/api/rules/import` | Import rules `{rules, mode: merge\|replace}` |
 | PUT/DELETE | `/api/rules/:id` | Update / delete |
-| GET | `/api/logs?domain=&source=&limit=` | Query log |
+| GET | `/api/logs?domain=&source=&status=&type=&client=&rule=&since=&until=&limit=` | Query log (`status`: `ok`\|`fail`; `since`/`until` are epoch ms) |
 | GET | `/api/stats` | Stats, cache info, DNS listener status |
 | GET | `/api/syslog?limit=` | Console output + audit events (operation/config changes) |
 | GET | `/api/events` | Authenticated SSE stream for batched query, stats and system-log updates |
