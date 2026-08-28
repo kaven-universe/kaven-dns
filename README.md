@@ -38,6 +38,26 @@ On first run the console opens a **setup screen** where you set the admin passwo
 > - Windows: run the terminal as administrator; or start with a debug port first: `KAVEN_DNS_PORT=5330 pnpm start`
 > - After allowing UDP/TCP 53 through the firewall, LAN devices can point their DNS at this machine
 
+## Usage
+
+Once setup is complete, the server is already answering queries with the default upstream group — the steps below cover pointing real devices at it and shaping how it resolves:
+
+- **Sign in** to the Web console at `http://<host>:<webPort>` (default port `8080`) with the admin password you set during setup.
+- **Add rules** on the Rules page for any domain you want to control: `Fixed answer` for internal hostnames or blocking, `Forward` to send specific domains to a different upstream. Rules take effect immediately, no restart needed — see [Rule Matching](#rule-matching) for how patterns and priority work.
+- **Everything unmatched** falls through to the default upstream group (see [Configuration](#configuration)) with caching and upstream racing applied automatically.
+- **Verify and monitor**: use the Settings page's resolve test, an external tool such as `nslookup` (see [Verification](#verification) below), or watch live traffic on the Dashboard, Query Log, Domains and Clients tabs.
+
+### Configure your system to use it
+
+Point a device's DNS at this machine's LAN IP (not `127.0.0.1`, which only resolves for processes on the same machine) on port `53` — most OS/router DNS settings don't support a custom port, so if you're running on a debug port such as `5330`, only tools that let you specify a port (e.g. `nslookup`, the Settings page's resolve test) can reach it.
+
+- **Windows**: Settings → Network & Internet → your connection → "Edit" next to DNS server assignment → Manual → On → set Preferred DNS to the server's LAN IP → Save.
+- **macOS**: System Settings → Network → your connection → Details → DNS → add the server's LAN IP under DNS Servers (place it above any other entries).
+- **Linux (NetworkManager)**: `nmcli con mod <connection-name> ipv4.dns <ip>` then `nmcli con up <connection-name>`; other setups can edit `/etc/systemd/resolved.conf` or `/etc/resolv.conf` directly.
+- **Router** (recommended — applies to every device on the network): in the router's LAN/DHCP settings, set the DNS server to this machine's LAN IP. Give that machine a static/reserved IP first so devices don't lose DNS when its lease changes.
+- **Android**: Wi-Fi settings → long-press the connected network → Modify network → Advanced options → IP settings: Static → set DNS 1 to the server's LAN IP.
+- **iOS**: Settings → Wi-Fi → ⓘ next to the connected network → Configure DNS → Manual → add the server's LAN IP.
+
 ## Verification
 
 ```bash
