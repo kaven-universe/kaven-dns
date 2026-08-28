@@ -2,6 +2,8 @@
 
 A DNS server built on Node.js with a Web console for monitoring and management.
 
+![Dashboard screenshot](assets/screenshot-dashboard.png)
+
 ## Features
 
 - **Standard DNS service**: listens on both UDP and TCP; supports A / AAAA / CNAME and passes common record types through
