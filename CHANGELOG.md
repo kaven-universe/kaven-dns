@@ -12,6 +12,7 @@ All notable changes to this project are documented in this file.
 
 - Queries and Logs terminology now matches across tabs, hash routes, REST endpoints, JSON/SSE payloads, frontend state, translations, store modules, tests, and documentation: Queries uses `/api/queries` and Logs uses `/api/logs`
 - `logRetentionDays` is now `queryRetentionDays`, and `data/querylog.json` is now `data/queries.json`; existing configuration and history are migrated automatically
+- Settings now uses a balanced responsive grid with grouped endpoint, query policy, security, and maintenance controls
 
 ### Testing
 

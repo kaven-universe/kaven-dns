@@ -316,7 +316,34 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 .form-errors { background: rgba(220,38,38,.08); color: var(--red); border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
 
 /* Settings */
-.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.settings-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas: "upstreams ports" "query-policy security" "maintenance maintenance";
+  gap: 16px; align-items: stretch;
+}
+.settings-grid > .card { display: flex; flex-direction: column; min-width: 0; margin-bottom: 0; }
+.settings-grid > .card > .btn { align-self: flex-start; margin-top: auto; }
+.settings-upstreams { grid-area: upstreams; }
+.settings-ports { grid-area: ports; }
+.settings-query-policy { grid-area: query-policy; }
+.settings-security { grid-area: security; }
+.settings-maintenance { grid-area: maintenance; overflow: hidden; }
+.settings-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.settings-endpoint-grid { grid-template-columns: minmax(140px, .65fr) minmax(0, 1.35fr); }
+.settings-password-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.settings-span-all { grid-column: 1 / -1; }
+.settings-maintenance-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 -20px -18px; border-top: 1px solid var(--border);
+}
+.settings-maintenance-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  gap: 16px; min-width: 0; padding: 16px 20px;
+}
+.settings-maintenance-item + .settings-maintenance-item { border-left: 1px solid var(--border); }
+.settings-maintenance-item h4 { margin: 0 0 2px; font-size: 13px; }
+.settings-maintenance-item p { margin: 0; color: var(--muted); font-size: 12px; }
+.settings-maintenance-item .btn { white-space: nowrap; }
 .upstream-row { display: flex; gap: 8px; margin-bottom: 8px; }
 .upstream-row input { flex: 1; }
 .empty { color: var(--muted); text-align: center; padding: 24px 0; }
@@ -351,7 +378,12 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   .analysis-grid { grid-template-columns: 1fr 1fr; }
   .query-side-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) {
+  .settings-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "upstreams" "ports" "query-policy" "security" "maintenance";
+  }
+}
 @media (max-width: 700px) {
   header {
     display: grid; grid-template-columns: minmax(72px, 1fr) auto auto auto;
@@ -378,6 +410,10 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   .analysis-head { flex-direction: column; }
   .segmented { width: 100%; }
   .segmented button { flex: 1; }
+  .settings-field-grid, .settings-endpoint-grid, .settings-password-grid, .settings-maintenance-grid { grid-template-columns: 1fr; }
+  .settings-maintenance-item { grid-template-columns: 1fr; gap: 10px; }
+  .settings-maintenance-item + .settings-maintenance-item { border-left: 0; border-top: 1px solid var(--border); }
+  .settings-maintenance-item .btn { justify-self: start; }
 }
 </style>
 </head>
@@ -983,43 +1019,18 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
       <!-- Settings -->
       <section v-show="tab==='settings'">
         <div class="settings-grid">
-          <div>
-            <div class="card">
-              <h3>{{ t('settings.upstreamsTitle') }}</h3>
-              <div v-for="(u, i) in settings.upstreams" :key="i" class="upstream-row">
-                <input v-model="settings.upstreams[i]" :placeholder="t('settings.upstreamPlaceholder')">
-                <button class="btn danger sm" @click="settings.upstreams.splice(i, 1)" :disabled="settings.upstreams.length <= 1">{{ t('settings.remove') }}</button>
-              </div>
-              <button class="btn secondary sm" @click="settings.upstreams.push('')">{{ t('settings.addUpstream') }}</button>
+          <div class="card settings-upstreams">
+            <h3>{{ t('settings.upstreamsTitle') }}</h3>
+            <div v-for="(u, i) in settings.upstreams" :key="i" class="upstream-row">
+              <input v-model="settings.upstreams[i]" :placeholder="t('settings.upstreamPlaceholder')">
+              <button class="btn danger sm" @click="settings.upstreams.splice(i, 1)" :disabled="settings.upstreams.length <= 1">{{ t('settings.remove') }}</button>
             </div>
-            <div class="card">
-              <h3>{{ t('settings.cacheQueries') }}</h3>
-              <div class="form-row">
-                <label>{{ t('settings.forwardTimeout') }}</label>
-                <input type="number" v-model.number="settings.forwardTimeoutMs" :class="{'invalid-adjusted': fieldAdjusted.forwardTimeoutMs}">
-                <div class="hint adjusted" v-if="fieldAdjusted.forwardTimeoutMs">{{ t('settings.adjustedTo', {value: settings.forwardTimeoutMs}) }}</div>
-              </div>
-              <div class="form-row">
-                <label>{{ t('settings.ttlRange') }}</label>
-                <div style="display:flex;gap:8px">
-                  <input type="number" v-model.number="settings.ttlMin" :class="{'invalid-adjusted': fieldAdjusted.ttlMin}">
-                  <input type="number" v-model.number="settings.ttlMax" :class="{'invalid-adjusted': fieldAdjusted.ttlMax}">
-                </div>
-                <div class="hint">{{ t('settings.ttlHint') }}</div>
-                <div class="hint adjusted" v-if="fieldAdjusted.ttlMin || fieldAdjusted.ttlMax">{{ t('settings.adjustedTo', {value: settings.ttlMin + ' / ' + settings.ttlMax}) }}</div>
-              </div>
-              <div class="form-row">
-                <label>{{ t('settings.queryRetentionDays') }}</label>
-                <input type="number" v-model.number="settings.queryRetentionDays" :class="{'invalid-adjusted': fieldAdjusted.queryRetentionDays}">
-                <div class="hint">{{ t('settings.queryRetentionHint') }}</div>
-                <div class="hint adjusted" v-if="fieldAdjusted.queryRetentionDays">{{ t('settings.adjustedTo', {value: settings.queryRetentionDays}) }}</div>
-              </div>
-              <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.saveSettings') }}</button>
-            </div>
+            <button class="btn secondary sm" @click="settings.upstreams.push('')">{{ t('settings.addUpstream') }}</button>
           </div>
-          <div>
-            <div class="card">
-              <h3>{{ t('settings.portsTitle') }}<span style="font-weight:400;font-size:12px;color:var(--muted)">{{ t('settings.portsHint') }}</span></h3>
+
+          <div class="card settings-ports">
+            <h3>{{ t('settings.portsTitle') }}<span style="font-weight:400;font-size:12px;color:var(--muted)">{{ t('settings.portsHint') }}</span></h3>
+            <div class="settings-field-grid settings-endpoint-grid">
               <div class="form-row">
                 <label>{{ t('settings.dnsPort') }}</label>
                 <input type="number" v-model.number="settings.dnsPort" :class="{'invalid-error': dnsNotApplied}">
@@ -1041,40 +1052,77 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 <input type="text" list="settingsLocalIps" v-model.trim="settings.webBindAddress" placeholder="0.0.0.0">
                 <div class="hint">{{ t('settings.webBindAddressHint') }}</div>
               </div>
-              <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.savePorts') }}</button>
             </div>
-            <datalist id="settingsLocalIps">
-              <option value="0.0.0.0">All interfaces</option>
-              <option value="127.0.0.1">Loopback</option>
-              <option v-for="ip in localIPs" :key="ip" :value="ip">{{ ip }}</option>
-            </datalist>
-            <div class="card">
-              <h3>{{ t('settings.cacheMgmt') }}</h3>
-              <p style="margin:0 0 12px;color:var(--muted);font-size:13px">
-                {{ t('settings.cacheInfo', {entries: cacheInfo.size ?? 0, hits: cacheInfo.hits ?? 0, rate: cacheInfo.hitRate ?? 0}) }}
-              </p>
-              <button class="btn danger" @click="flushCache">{{ t('settings.flushCache') }}</button>
-            </div>
-            <div class="card">
-              <h3>{{ t('settings.queries') }}</h3>
-              <p style="margin:0 0 12px;color:var(--muted);font-size:13px">
-                {{ t('settings.queriesInfo', {n: analytics.retainedQueries ?? 0}) }}
-              </p>
-              <button class="btn danger" :disabled="resettingQueries" @click="resetQueries">
-                {{ resettingQueries ? t('settings.resettingQueries') : t('settings.resetQueries') }}
-              </button>
-            </div>
-            <div class="card">
-              <h3>{{ t('settings.security') }}</h3>
+            <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.savePorts') }}</button>
+          </div>
+
+          <datalist id="settingsLocalIps">
+            <option value="0.0.0.0">All interfaces</option>
+            <option value="127.0.0.1">Loopback</option>
+            <option v-for="ip in localIPs" :key="ip" :value="ip">{{ ip }}</option>
+          </datalist>
+
+          <div class="card settings-query-policy">
+            <h3>{{ t('settings.cacheQueries') }}</h3>
+            <div class="settings-field-grid">
               <div class="form-row">
-                <label>{{ t('settings.sessionTtl') }}</label>
-                <input type="number" v-model.number="settings.sessionTtlHours">
-                <div class="hint">{{ t('settings.sessionTtlHint') }}</div>
+                <label>{{ t('settings.forwardTimeout') }}</label>
+                <input type="number" v-model.number="settings.forwardTimeoutMs" :class="{'invalid-adjusted': fieldAdjusted.forwardTimeoutMs}">
+                <div class="hint adjusted" v-if="fieldAdjusted.forwardTimeoutMs">{{ t('settings.adjustedTo', {value: settings.forwardTimeoutMs}) }}</div>
               </div>
-              <div class="form-row"><label>{{ t('settings.currentPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.current"></div>
+              <div class="form-row">
+                <label>{{ t('settings.queryRetentionDays') }}</label>
+                <input type="number" v-model.number="settings.queryRetentionDays" :class="{'invalid-adjusted': fieldAdjusted.queryRetentionDays}">
+                <div class="hint">{{ t('settings.queryRetentionHint') }}</div>
+                <div class="hint adjusted" v-if="fieldAdjusted.queryRetentionDays">{{ t('settings.adjustedTo', {value: settings.queryRetentionDays}) }}</div>
+              </div>
+              <div class="form-row settings-span-all">
+                <label>{{ t('settings.ttlRange') }}</label>
+                <div style="display:flex;gap:8px">
+                  <input type="number" v-model.number="settings.ttlMin" :class="{'invalid-adjusted': fieldAdjusted.ttlMin}">
+                  <input type="number" v-model.number="settings.ttlMax" :class="{'invalid-adjusted': fieldAdjusted.ttlMax}">
+                </div>
+                <div class="hint">{{ t('settings.ttlHint') }}</div>
+                <div class="hint adjusted" v-if="fieldAdjusted.ttlMin || fieldAdjusted.ttlMax">{{ t('settings.adjustedTo', {value: settings.ttlMin + ' / ' + settings.ttlMax}) }}</div>
+              </div>
+            </div>
+            <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.saveSettings') }}</button>
+          </div>
+
+          <div class="card settings-security">
+            <h3>{{ t('settings.security') }}</h3>
+            <div class="form-row">
+              <label>{{ t('settings.sessionTtl') }}</label>
+              <input type="number" v-model.number="settings.sessionTtlHours">
+              <div class="hint">{{ t('settings.sessionTtlHint') }}</div>
+            </div>
+            <div class="settings-password-grid">
+              <div class="form-row settings-span-all"><label>{{ t('settings.currentPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.current"></div>
               <div class="form-row"><label>{{ t('settings.newPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.next"></div>
               <div class="form-row"><label>{{ t('settings.confirmPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.confirm"></div>
-              <button class="btn" :disabled="savingPw" @click="changePassword">{{ savingPw ? t('settings.submitting') : t('settings.changePassword') }}</button>
+            </div>
+            <button class="btn" :disabled="savingPw" @click="changePassword">{{ savingPw ? t('settings.submitting') : t('settings.changePassword') }}</button>
+          </div>
+
+          <div class="card settings-maintenance">
+            <h3>{{ t('settings.maintenance') }}</h3>
+            <div class="settings-maintenance-grid">
+              <div class="settings-maintenance-item">
+                <div>
+                  <h4>{{ t('settings.cacheMgmt') }}</h4>
+                  <p>{{ t('settings.cacheInfo', {entries: cacheInfo.size ?? 0, hits: cacheInfo.hits ?? 0, rate: cacheInfo.hitRate ?? 0}) }}</p>
+                </div>
+                <button class="btn danger" @click="flushCache">{{ t('settings.flushCache') }}</button>
+              </div>
+              <div class="settings-maintenance-item">
+                <div>
+                  <h4>{{ t('settings.queries') }}</h4>
+                  <p>{{ t('settings.queriesInfo', {n: analytics.retainedQueries ?? 0}) }}</p>
+                </div>
+                <button class="btn danger" :disabled="resettingQueries" @click="resetQueries">
+                  {{ resettingQueries ? t('settings.resettingQueries') : t('settings.resetQueries') }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1471,6 +1519,7 @@ const I18N = {
     'settings.webBindAddress': 'Web console bind address',
     'settings.webBindAddressHint': 'Which IP the console is reachable on (0.0.0.0 = all interfaces)',
     'settings.savePorts': 'Save Ports',
+    'settings.maintenance': 'Maintenance',
     'settings.cacheMgmt': 'Cache Management',
     'settings.cacheInfo': '{entries} entries · {hits} hits · {rate}% hit rate',
     'settings.flushCache': 'Flush Cache',
@@ -1748,6 +1797,7 @@ const I18N = {
     'settings.webBindAddress': 'Web 控制台绑定地址',
     'settings.webBindAddressHint': 'Web 控制台在哪个 IP 上可访问（0.0.0.0 = 所有网卡）',
     'settings.savePorts': '保存端口',
+    'settings.maintenance': '维护',
     'settings.cacheMgmt': '缓存管理',
     'settings.cacheInfo': '{entries} 条 · 命中 {hits} 次 · 命中率 {rate}%',
     'settings.flushCache': '清空缓存',
