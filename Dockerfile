@@ -14,6 +14,7 @@ WORKDIR /app
 RUN apk add --no-cache dumb-init
 
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node package.json ./package.json
 COPY --chown=node:node src ./src
 
 RUN mkdir -p /app/data \
@@ -24,7 +25,7 @@ ENV NODE_ENV=production \
 
 LABEL org.opencontainers.image.title="kaven-dns" \
     org.opencontainers.image.description="Node.js DNS server with a Web management console" \
-    org.opencontainers.image.version="1.2.1" \
+    org.opencontainers.image.version="1.3.0" \
     org.opencontainers.image.authors="Kaven <kaven@wuwenkai.com>"
 
 VOLUME ["/app/data"]

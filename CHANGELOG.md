@@ -4,18 +4,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-30
+
 ### Added
 
 - Settings now includes a confirmed Query History reset that clears retained queries and aggregate query counters, persists the reset immediately, and synchronizes all connected consoles
 - DNS queries relayed by a loopback forwarder can now retain their original IPv4 or IPv6 client identity through EDNS Client Subnet (ECS); malformed ECS and values supplied by non-loopback peers are ignored
 - Settings now includes a manual update check that compares the running package version with stable GitHub tags and links to a newer tag when available; it does not install updates automatically
 - Added a compact bilingual footer to setup, login, and authenticated console views with the running version plus GitHub and Docker Hub links
+- The Web console now shows a persistent bilingual warning while the server is unreachable and resumes live updates automatically after reconnecting
 
 ### Changed
 
 - Queries and Logs terminology now matches across tabs, hash routes, REST endpoints, JSON/SSE payloads, frontend state, translations, store modules, tests, and documentation: Queries uses `/api/queries` and Logs uses `/api/logs`
 - `logRetentionDays` is now `queryRetentionDays`, and `data/querylog.json` is now `data/queries.json`; existing configuration and history are migrated automatically
 - Settings now uses a balanced responsive grid with grouped endpoint, query policy, security, and maintenance controls
+- The runtime baseline is now Node.js 22, with application dependencies refreshed to their current supported versions
 
 ### Testing
 
