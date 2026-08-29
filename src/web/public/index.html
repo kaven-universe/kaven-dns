@@ -176,11 +176,11 @@ main { margin: 20px 0 40px; padding: 0 clamp(16px, 2.5vw, 48px) 40px; }
   gap: 16px; margin-bottom: 16px; align-items: stretch;
 }
 .analysis-grid > .card { margin-bottom: 0; min-width: 0; }
-.log-side-grid {
+.query-side-grid {
   display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, .8fr);
   gap: 16px; align-items: start; margin-bottom: 16px;
 }
-.log-side-grid > .card { margin-bottom: 0; min-width: 0; }
+.query-side-grid > .card { margin-bottom: 0; min-width: 0; }
 .stacked-cards { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .stacked-cards > .card { margin-bottom: 0; }
 .analysis-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
@@ -264,7 +264,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 .badge.warn { background: rgba(217,119,6,.12); color: var(--orange); }
 .badge.error { background: rgba(220,38,38,.12); color: var(--red); }
 
-/* System log console output */
+/* Logs tab console output */
 .console-log {
   background: #0f172a; color: #cbd5e1;
   font: 12px/1.6 Consolas, "Cascadia Mono", "Courier New", monospace;
@@ -349,7 +349,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   .query-kpis { grid-column: 1 / -1; border-bottom: 1px solid var(--border); }
   .query-detail:first-of-type { border-left: 0; }
   .analysis-grid { grid-template-columns: 1fr 1fr; }
-  .log-side-grid { grid-template-columns: 1fr; }
+  .query-side-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
@@ -374,7 +374,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   .query-kpi .sub { min-height: 26px; white-space: normal; font-size: 10px; line-height: 1.3; }
   .query-detail { padding: 14px 16px; border-left: 0; border-top: 1px solid var(--border); }
   .analysis-grid { grid-template-columns: 1fr; }
-  .log-side-grid { grid-template-columns: 1fr; }
+  .query-side-grid { grid-template-columns: 1fr; }
   .analysis-head { flex-direction: column; }
   .segmented { width: 100%; }
   .segmented button { flex: 1; }
@@ -624,35 +624,35 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
           </div>
         </div>
 
-        <div class="log-side-grid">
+        <div class="query-side-grid">
           <div class="card">
             <div class="toolbar">
-              <h3 style="margin:0">{{ t('log.title') }}</h3>
+              <h3 style="margin:0">{{ t('query.title') }}</h3>
               <span class="grow"></span>
               <span class="live-dot" :class="{on: liveConnected && autoRefresh}" :title="liveStatusTitle"></span>
             </div>
             <div class="tbl-scroll">
               <table>
                 <thead>
-                  <tr><th>{{ t('log.time') }}</th><th>{{ t('log.client') }}</th><th>{{ t('log.domain') }}</th><th>{{ t('log.type') }}</th><th>{{ t('log.source') }}</th><th>{{ t('log.ruleUpstream') }}</th><th>{{ t('log.result') }}</th><th>{{ t('log.status') }}</th><th>{{ t('log.latency') }}</th></tr>
+                  <tr><th>{{ t('query.time') }}</th><th>{{ t('query.client') }}</th><th>{{ t('query.domain') }}</th><th>{{ t('query.type') }}</th><th>{{ t('query.source') }}</th><th>{{ t('query.ruleUpstream') }}</th><th>{{ t('query.result') }}</th><th>{{ t('query.status') }}</th><th>{{ t('query.latency') }}</th></tr>
                 </thead>
                 <tbody>
-                  <tr v-if="!recentLogs.length"><td colspan="9" class="empty">{{ t('log.empty') }}</td></tr>
-                  <tr v-for="(l, i) in recentLogs" :key="l.seq || i">
-                    <td>{{ fmtTime(l.t) }}</td>
-                    <td>{{ l.client }}</td>
-                    <td class="wrap">{{ l.domain }}</td>
-                    <td>{{ l.type }}</td>
-                    <td><span class="badge" :class="l.source">{{ sourceText(l.source) }}</span></td>
-                    <td class="wrap">{{ l.rule || l.upstream || (l.error ? l.error : '-') }}</td>
-                    <td class="wrap">{{ l.answers || '-' }}</td>
-                    <td><span class="badge" :class="l.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(l.rcode) }}</span></td>
-                    <td>{{ l.latencyMs }} ms</td>
+                  <tr v-if="!recentQueries.length"><td colspan="9" class="empty">{{ t('query.empty') }}</td></tr>
+                  <tr v-for="(query, i) in recentQueries" :key="query.seq || i">
+                    <td>{{ fmtTime(query.t) }}</td>
+                    <td>{{ query.client }}</td>
+                    <td class="wrap">{{ query.domain }}</td>
+                    <td>{{ query.type }}</td>
+                    <td><span class="badge" :class="query.source">{{ sourceText(query.source) }}</span></td>
+                    <td class="wrap">{{ query.rule || query.upstream || (query.error ? query.error : '-') }}</td>
+                    <td class="wrap">{{ query.answers || '-' }}</td>
+                    <td><span class="badge" :class="query.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(query.rcode) }}</span></td>
+                    <td>{{ query.latencyMs }} ms</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <button v-if="logs.length > 20" class="rank-more" @click="goTo('queries')">{{ t('log.viewAll') }}</button>
+            <button v-if="queries.length > 20" class="rank-more" @click="goTo('queries')">{{ t('query.viewAll') }}</button>
           </div>
 
           <div class="stacked-cards">
@@ -755,73 +755,73 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
           <div class="toolbar">
             <h3 style="margin:0">{{ t('nav.queries') }}</h3>
             <span class="grow"></span>
-            <select v-model="logFilter.rangePreset" :aria-label="t('log.timeRange')">
-              <option value="">{{ t('log.rangeAll') }}</option>
-              <option value="15m">{{ t('log.range15m') }}</option>
-              <option value="1h">{{ t('log.range1h') }}</option>
-              <option value="6h">{{ t('log.range6h') }}</option>
-              <option value="24h">{{ t('log.range24h') }}</option>
-              <option value="7d">{{ t('log.range7d') }}</option>
-              <option value="custom">{{ t('log.rangeCustom') }}</option>
+            <select v-model="queryFilter.rangePreset" :aria-label="t('query.timeRange')">
+              <option value="">{{ t('query.rangeAll') }}</option>
+              <option value="15m">{{ t('query.range15m') }}</option>
+              <option value="1h">{{ t('query.range1h') }}</option>
+              <option value="6h">{{ t('query.range6h') }}</option>
+              <option value="24h">{{ t('query.range24h') }}</option>
+              <option value="7d">{{ t('query.range7d') }}</option>
+              <option value="custom">{{ t('query.rangeCustom') }}</option>
             </select>
-            <template v-if="logFilter.rangePreset === 'custom'">
-              <input type="datetime-local" v-model="logFilter.customFrom" :aria-label="t('log.rangeFrom')" style="width: 175px">
+            <template v-if="queryFilter.rangePreset === 'custom'">
+              <input type="datetime-local" v-model="queryFilter.customFrom" :aria-label="t('query.rangeFrom')" style="width: 175px">
               <span style="color:var(--muted)">&ndash;</span>
-              <input type="datetime-local" v-model="logFilter.customTo" :aria-label="t('log.rangeTo')" style="width: 175px">
+              <input type="datetime-local" v-model="queryFilter.customTo" :aria-label="t('query.rangeTo')" style="width: 175px">
             </template>
-            <input v-model="logFilter.domain" :placeholder="t('log.filterDomain')" style="width: 200px">
-            <button class="btn secondary sm" @click="exportLogs" :disabled="!sortedVisibleLogs.length">{{ t('log.export') }}</button>
+            <input v-model="queryFilter.domain" :placeholder="t('query.filterDomain')" style="width: 200px">
+            <button class="btn secondary sm" @click="exportQueries" :disabled="!sortedVisibleQueries.length">{{ t('query.export') }}</button>
             <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px">
               <span class="switch"><input type="checkbox" v-model="autoRefresh"><span class="slider"></span></span>
               <span class="live-dot" :class="{on: liveConnected && autoRefresh}" :title="liveStatusTitle"></span>
-              {{ t('log.autoRefresh') }}
+              {{ t('query.autoRefresh') }}
             </label>
           </div>
           <div class="tbl-scroll">
             <table>
               <thead>
                 <tr>
-                  <th class="sortable" @click="toggleSort('logs','time')">{{ t('log.time') }}{{ sortIndicator('logs','time') }}</th>
-                  <th class="sortable" @click="toggleSort('logs','client')">
-                    {{ t('log.client') }}{{ sortIndicator('logs','client') }}
-                    <col-filter v-model="logFilter.client" :options="clientFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  <th class="sortable" @click="toggleSort('queries','time')">{{ t('query.time') }}{{ sortIndicator('queries','time') }}</th>
+                  <th class="sortable" @click="toggleSort('queries','client')">
+                    {{ t('query.client') }}{{ sortIndicator('queries','client') }}
+                    <col-filter v-model="queryFilter.client" :options="clientFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('logs','domain')">
-                    {{ t('log.domain') }}{{ sortIndicator('logs','domain') }}
-                    <col-filter v-model="logFilter.domain" :options="domainFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  <th class="sortable" @click="toggleSort('queries','domain')">
+                    {{ t('query.domain') }}{{ sortIndicator('queries','domain') }}
+                    <col-filter v-model="queryFilter.domain" :options="domainFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('logs','type')">
-                    {{ t('log.type') }}{{ sortIndicator('logs','type') }}
-                    <col-filter v-model="logFilter.type" :options="typeFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  <th class="sortable" @click="toggleSort('queries','type')">
+                    {{ t('query.type') }}{{ sortIndicator('queries','type') }}
+                    <col-filter v-model="queryFilter.type" :options="typeFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('logs','source')">
-                    {{ t('log.source') }}{{ sortIndicator('logs','source') }}
-                    <col-filter v-model="logFilter.source" :options="sourceFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  <th class="sortable" @click="toggleSort('queries','source')">
+                    {{ t('query.source') }}{{ sortIndicator('queries','source') }}
+                    <col-filter v-model="queryFilter.source" :options="sourceFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('logs','rule')">
-                    {{ t('log.ruleUpstream') }}{{ sortIndicator('logs','rule') }}
-                    <col-filter v-model="logFilter.rule" :options="ruleFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  <th class="sortable" @click="toggleSort('queries','rule')">
+                    {{ t('query.ruleUpstream') }}{{ sortIndicator('queries','rule') }}
+                    <col-filter v-model="queryFilter.rule" :options="ruleFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('logs','result')">{{ t('log.result') }}{{ sortIndicator('logs','result') }}</th>
-                  <th class="sortable" @click="toggleSort('logs','status')">
-                    {{ t('log.status') }}{{ sortIndicator('logs','status') }}
-                    <col-filter v-model="logFilter.status" :options="statusFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
+                  <th class="sortable" @click="toggleSort('queries','result')">{{ t('query.result') }}{{ sortIndicator('queries','result') }}</th>
+                  <th class="sortable" @click="toggleSort('queries','status')">
+                    {{ t('query.status') }}{{ sortIndicator('queries','status') }}
+                    <col-filter v-model="queryFilter.status" :options="statusFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('logs','latency')">{{ t('log.latency') }}{{ sortIndicator('logs','latency') }}</th>
+                  <th class="sortable" @click="toggleSort('queries','latency')">{{ t('query.latency') }}{{ sortIndicator('queries','latency') }}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="!sortedVisibleLogs.length"><td colspan="9" class="empty">{{ t('log.empty') }}</td></tr>
-                <tr v-for="(l, i) in sortedVisibleLogs" :key="l.seq || i">
-                  <td>{{ fmtTime(l.t) }}</td>
-                  <td>{{ l.client }}</td>
-                  <td class="wrap">{{ l.domain }}</td>
-                  <td>{{ l.type }}</td>
-                  <td><span class="badge" :class="l.source">{{ sourceText(l.source) }}</span></td>
-                  <td class="wrap">{{ l.rule || l.upstream || (l.error ? l.error : '-') }}</td>
-                  <td class="wrap">{{ l.answers || '-' }}</td>
-                  <td><span class="badge" :class="l.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(l.rcode) }}</span></td>
-                  <td>{{ l.latencyMs }} ms</td>
+                <tr v-if="!sortedVisibleQueries.length"><td colspan="9" class="empty">{{ t('query.empty') }}</td></tr>
+                <tr v-for="(query, i) in sortedVisibleQueries" :key="query.seq || i">
+                  <td>{{ fmtTime(query.t) }}</td>
+                  <td>{{ query.client }}</td>
+                  <td class="wrap">{{ query.domain }}</td>
+                  <td>{{ query.type }}</td>
+                  <td><span class="badge" :class="query.source">{{ sourceText(query.source) }}</span></td>
+                  <td class="wrap">{{ query.rule || query.upstream || (query.error ? query.error : '-') }}</td>
+                  <td class="wrap">{{ query.answers || '-' }}</td>
+                  <td><span class="badge" :class="query.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(query.rcode) }}</span></td>
+                  <td>{{ query.latencyMs }} ms</td>
                 </tr>
               </tbody>
             </table>
@@ -842,7 +842,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
             <table>
               <thead>
                 <tr>
-                  <th class="sortable" @click="toggleSort('domains','domain')">{{ t('log.domain') }}{{ sortIndicator('domains','domain') }}</th>
+                  <th class="sortable" @click="toggleSort('domains','domain')">{{ t('query.domain') }}{{ sortIndicator('domains','domain') }}</th>
                   <th class="sortable" @click="toggleSort('domains','count')">{{ t('analytics.queries') }}{{ sortIndicator('domains','count') }}</th>
                   <th class="sortable" @click="toggleSort('domains','failures')">
                     {{ t('analytics.colFailures') }}{{ sortIndicator('domains','failures') }}
@@ -876,7 +876,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
             <table>
               <thead>
                 <tr>
-                  <th class="sortable" @click="toggleSort('clients','client')">{{ t('log.client') }}{{ sortIndicator('clients','client') }}</th>
+                  <th class="sortable" @click="toggleSort('clients','client')">{{ t('query.client') }}{{ sortIndicator('clients','client') }}</th>
                   <th class="sortable" @click="toggleSort('clients','count')">{{ t('analytics.queries') }}{{ sortIndicator('clients','count') }}</th>
                   <th class="sortable" @click="toggleSort('clients','failures')">
                     {{ t('analytics.colFailures') }}{{ sortIndicator('clients','failures') }}
@@ -939,25 +939,25 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
       <section v-show="tab==='logs'">
         <div class="card">
           <div class="toolbar">
-            <h3 style="margin:0">{{ t('syslog.auditTitle') }}</h3>
+            <h3 style="margin:0">{{ t('logs.operationTitle') }}</h3>
             <span class="grow"></span>
             <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px">
               <span class="switch"><input type="checkbox" v-model="autoRefresh"><span class="slider"></span></span>
               <span class="live-dot" :class="{on: liveConnected && autoRefresh}" :title="liveStatusTitle"></span>
-              {{ t('log.autoRefresh') }}
+              {{ t('logs.autoRefresh') }}
             </label>
           </div>
           <div class="tbl-scroll">
             <table>
               <thead>
-                <tr><th style="width:150px">{{ t('log.time') }}</th><th style="width:110px">{{ t('syslog.type') }}</th><th>{{ t('syslog.message') }}</th></tr>
+                <tr><th style="width:150px">{{ t('logs.time') }}</th><th style="width:110px">{{ t('logs.type') }}</th><th>{{ t('logs.message') }}</th></tr>
               </thead>
               <tbody>
-                <tr v-if="!syslog.events.length"><td colspan="3" class="empty">{{ t('syslog.emptyEvents') }}</td></tr>
-                <tr v-for="(e, i) in syslog.events" :key="e.seq || i">
-                  <td>{{ fmtTime(e.t) }}</td>
-                  <td><span class="badge" :class="e.level">{{ e.type }}</span></td>
-                  <td class="wrap">{{ e.msg }}</td>
+                <tr v-if="!logs.operationLogs.length"><td colspan="3" class="empty">{{ t('logs.emptyOperations') }}</td></tr>
+                <tr v-for="(entry, i) in logs.operationLogs" :key="entry.seq || i">
+                  <td>{{ fmtTime(entry.t) }}</td>
+                  <td><span class="badge" :class="entry.level">{{ entry.type }}</span></td>
+                  <td class="wrap">{{ entry.msg }}</td>
                 </tr>
               </tbody>
             </table>
@@ -966,15 +966,15 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 
         <div class="card">
           <div class="toolbar">
-            <h3 style="margin:0">{{ t('syslog.consoleTitle') }}</h3>
+            <h3 style="margin:0">{{ t('logs.consoleTitle') }}</h3>
             <span class="grow"></span>
-            <button class="btn secondary sm" @click="loadSystemLog">{{ t('syslog.refresh') }}</button>
+            <button class="btn secondary sm" @click="loadLogs">{{ t('logs.refresh') }}</button>
           </div>
           <div class="console-log">
-            <div v-if="!syslog.console.length" class="empty">{{ t('syslog.emptyConsole') }}</div>
-            <div v-for="(l, i) in syslog.console" :key="l.seq || i" class="cline" :class="l.level">
-              <span class="ctime">{{ fmtTime(l.t) }}</span>
-              <span class="cmsg">{{ l.msg }}</span>
+            <div v-if="!logs.consoleLogs.length" class="empty">{{ t('logs.emptyConsole') }}</div>
+            <div v-for="(entry, i) in logs.consoleLogs" :key="entry.seq || i" class="cline" :class="entry.level">
+              <span class="ctime">{{ fmtTime(entry.t) }}</span>
+              <span class="cmsg">{{ entry.msg }}</span>
             </div>
           </div>
         </div>
@@ -993,7 +993,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
               <button class="btn secondary sm" @click="settings.upstreams.push('')">{{ t('settings.addUpstream') }}</button>
             </div>
             <div class="card">
-              <h3>{{ t('settings.cacheLogging') }}</h3>
+              <h3>{{ t('settings.cacheQueries') }}</h3>
               <div class="form-row">
                 <label>{{ t('settings.forwardTimeout') }}</label>
                 <input type="number" v-model.number="settings.forwardTimeoutMs" :class="{'invalid-adjusted': fieldAdjusted.forwardTimeoutMs}">
@@ -1009,10 +1009,10 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 <div class="hint adjusted" v-if="fieldAdjusted.ttlMin || fieldAdjusted.ttlMax">{{ t('settings.adjustedTo', {value: settings.ttlMin + ' / ' + settings.ttlMax}) }}</div>
               </div>
               <div class="form-row">
-                <label>{{ t('settings.logRetentionDays') }}</label>
-                <input type="number" v-model.number="settings.logRetentionDays" :class="{'invalid-adjusted': fieldAdjusted.logRetentionDays}">
-                <div class="hint">{{ t('settings.logRetentionHint') }}</div>
-                <div class="hint adjusted" v-if="fieldAdjusted.logRetentionDays">{{ t('settings.adjustedTo', {value: settings.logRetentionDays}) }}</div>
+                <label>{{ t('settings.queryRetentionDays') }}</label>
+                <input type="number" v-model.number="settings.queryRetentionDays" :class="{'invalid-adjusted': fieldAdjusted.queryRetentionDays}">
+                <div class="hint">{{ t('settings.queryRetentionHint') }}</div>
+                <div class="hint adjusted" v-if="fieldAdjusted.queryRetentionDays">{{ t('settings.adjustedTo', {value: settings.queryRetentionDays}) }}</div>
               </div>
               <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.saveSettings') }}</button>
             </div>
@@ -1054,6 +1054,15 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 {{ t('settings.cacheInfo', {entries: cacheInfo.size ?? 0, hits: cacheInfo.hits ?? 0, rate: cacheInfo.hitRate ?? 0}) }}
               </p>
               <button class="btn danger" @click="flushCache">{{ t('settings.flushCache') }}</button>
+            </div>
+            <div class="card">
+              <h3>{{ t('settings.queries') }}</h3>
+              <p style="margin:0 0 12px;color:var(--muted);font-size:13px">
+                {{ t('settings.queriesInfo', {n: analytics.retainedQueries ?? 0}) }}
+              </p>
+              <button class="btn danger" :disabled="resettingQueries" @click="resetQueries">
+                {{ resettingQueries ? t('settings.resettingQueries') : t('settings.resetQueries') }}
+              </button>
             </div>
             <div class="card">
               <h3>{{ t('settings.security') }}</h3>
@@ -1176,11 +1185,11 @@ function tabFromHash() {
   return ['dashboard', 'queries', 'domains', 'clients', 'rules', 'logs', 'settings'].includes(h) ? h : 'dashboard';
 }
 
-// Per-table column accessors for the generic sortRows() below; 'logs' covers
+// Per-table column accessors for the generic sortRows() below; 'queries' covers
 // the composite Rule/Upstream and Result/Status columns that have no single
-// matching field on a log entry.
+// matching field on a query entry.
 const SORT_ACCESSORS = {
-  logs: {
+  queries: {
     time: l => l.t,
     client: l => l.client || '',
     domain: l => l.domain || '',
@@ -1326,51 +1335,56 @@ const I18N = {
     'test.failed': 'Failed',
     'test.rule': 'Rule',
     'test.upstream': 'Upstream',
-    'log.title': 'Query Log',
-    'log.timeRange': 'Time range',
-    'log.rangeAll': 'All time',
-    'log.range15m': 'Last 15 minutes',
-    'log.range1h': 'Last 1 hour',
-    'log.range6h': 'Last 6 hours',
-    'log.range24h': 'Last 24 hours',
-    'log.range7d': 'Last 7 days',
-    'log.rangeCustom': 'Custom range',
-    'log.rangeFrom': 'From',
-    'log.rangeTo': 'To',
-    'log.filterDomain': 'Filter by domain',
-    'log.allSources': 'All sources',
-    'log.allStatus': 'All statuses',
-    'log.allTypes': 'All types',
-    'log.allClients': 'All clients',
-    'log.allDomains': 'All domains',
-    'log.allRules': 'All rules/upstreams',
-    'log.statusFail': 'Failed',
+    'query.title': 'Recent Queries',
+    'query.timeRange': 'Time range',
+    'query.rangeAll': 'All time',
+    'query.range15m': 'Last 15 minutes',
+    'query.range1h': 'Last 1 hour',
+    'query.range6h': 'Last 6 hours',
+    'query.range24h': 'Last 24 hours',
+    'query.range7d': 'Last 7 days',
+    'query.rangeCustom': 'Custom range',
+    'query.rangeFrom': 'From',
+    'query.rangeTo': 'To',
+    'query.filterDomain': 'Filter by domain',
+    'query.allSources': 'All sources',
+    'query.allStatus': 'All statuses',
+    'query.allTypes': 'All types',
+    'query.allClients': 'All clients',
+    'query.allDomains': 'All domains',
+    'query.allRules': 'All rules/upstreams',
+    'query.statusFail': 'Failed',
     'filter.reset': 'Reset',
     'filter.confirm': 'Confirm',
-    'log.autoRefresh': 'Live updates',
-    'log.export': 'Export',
-    'log.exported': 'Exported {n} queries',
-    'log.liveConnected': 'Live stream connected',
-    'log.liveFallback': 'Stream disconnected; using periodic refresh',
-    'log.livePaused': 'Live updates paused',
-    'log.viewAll': 'View full log →',
-    'syslog.auditTitle': 'Operation Log',
-    'syslog.consoleTitle': 'Console Output',
-    'syslog.type': 'Type',
-    'syslog.message': 'Message',
-    'syslog.emptyEvents': 'No operation records yet',
-    'syslog.emptyConsole': 'No console output yet',
-    'syslog.refresh': 'Refresh',
-    'log.empty': 'No queries yet',
-    'log.time': 'Time',
-    'log.client': 'Client',
-    'log.domain': 'Domain',
-    'log.type': 'Type',
-    'log.source': 'Source',
-    'log.ruleUpstream': 'Rule / Upstream',
-    'log.result': 'Result',
-    'log.status': 'Status',
-    'log.latency': 'Latency',
+    'query.autoRefresh': 'Live updates',
+    'query.export': 'Export',
+    'query.exported': 'Exported {n} queries',
+    'query.liveConnected': 'Live stream connected',
+    'query.liveFallback': 'Stream disconnected; using periodic refresh',
+    'query.livePaused': 'Live updates paused',
+    'query.viewAll': 'View all queries →',
+    'query.empty': 'No queries yet',
+    'query.time': 'Time',
+    'query.client': 'Client',
+    'query.domain': 'Domain',
+    'query.type': 'Type',
+    'query.source': 'Source',
+    'query.ruleUpstream': 'Rule / Upstream',
+    'query.result': 'Result',
+    'query.status': 'Status',
+    'query.latency': 'Latency',
+    'logs.operationTitle': 'Operation Log',
+    'logs.consoleTitle': 'Console Output',
+    'logs.type': 'Type',
+    'logs.message': 'Message',
+    'logs.emptyOperations': 'No operation records yet',
+    'logs.emptyConsole': 'No console output yet',
+    'logs.refresh': 'Refresh',
+    'logs.autoRefresh': 'Live updates',
+    'logs.liveConnected': 'Live stream connected',
+    'logs.liveFallback': 'Stream disconnected; using periodic refresh',
+    'logs.livePaused': 'Live updates paused',
+    'logs.time': 'Time',
     'source.fixed': 'Rule',
     'source.cache': 'Cache',
     'source.forward': 'Forward',
@@ -1436,12 +1450,12 @@ const I18N = {
     'settings.upstreamPlaceholder': 'e.g. 223.5.5.5 or 8.8.8.8:53',
     'settings.remove': 'Remove',
     'settings.addUpstream': '+ Add upstream',
-    'settings.cacheLogging': 'Cache & Logging',
+    'settings.cacheQueries': 'Cache & Queries',
     'settings.forwardTimeout': 'Forward timeout (ms, 500-30000)',
     'settings.ttlRange': 'Cache TTL min / max (seconds)',
     'settings.ttlHint': 'Actual cache time = the answer\'s minimum TTL, clamped to this range',
-    'settings.logRetentionDays': 'Query log retention (days)',
-    'settings.logRetentionHint': 'Entries older than this are dropped automatically; 0 disables time-based trimming (a safety ceiling on total entries always applies)',
+    'settings.queryRetentionDays': 'Query retention (days)',
+    'settings.queryRetentionHint': 'Queries older than this are dropped automatically; 0 disables time-based trimming (a safety ceiling on total entries always applies)',
     'settings.saveSettings': 'Save Settings',
     'settings.saving': 'Saving...',
     'settings.portsTitle': 'Service Ports',
@@ -1460,6 +1474,10 @@ const I18N = {
     'settings.cacheMgmt': 'Cache Management',
     'settings.cacheInfo': '{entries} entries · {hits} hits · {rate}% hit rate',
     'settings.flushCache': 'Flush Cache',
+    'settings.queries': 'Queries',
+    'settings.queriesInfo': '{n} retained queries. Resetting clears all queries and aggregate query counts; cache data is not affected.',
+    'settings.resetQueries': 'Reset Queries',
+    'settings.resettingQueries': 'Resetting...',
     'settings.changePassword': 'Change Password',
     'settings.security': 'Security',
     'settings.sessionTtl': 'Session validity (hours, 1-720)',
@@ -1480,6 +1498,8 @@ const I18N = {
     'toast.passwordMismatch': 'New passwords do not match',
     'toast.flushConfirm': 'Flush all DNS cache entries?',
     'toast.flushed': 'Flushed {n} cache entries',
+    'toast.resetQueriesConfirm': 'Reset all queries and aggregate query counts? Cache data is not affected. This cannot be undone.',
+    'toast.queriesReset': 'Cleared {n} queries and reset query counts',
     'api.requestFailed': 'Request failed ({status})',
     'api.signInFailed': 'Sign-in failed',
     'dur.d': 'd', 'dur.h': 'h', 'dur.m': 'm', 'dur.s': 's',
@@ -1592,51 +1612,56 @@ const I18N = {
     'test.failed': '失败',
     'test.rule': '规则',
     'test.upstream': '上游',
-    'log.title': '查询日志',
-    'log.timeRange': '时间范围',
-    'log.rangeAll': '全部时间',
-    'log.range15m': '最近 15 分钟',
-    'log.range1h': '最近 1 小时',
-    'log.range6h': '最近 6 小时',
-    'log.range24h': '最近 24 小时',
-    'log.range7d': '最近 7 天',
-    'log.rangeCustom': '自定义范围',
-    'log.rangeFrom': '起始时间',
-    'log.rangeTo': '结束时间',
-    'log.filterDomain': '按域名过滤',
-    'log.allSources': '全部来源',
-    'log.allStatus': '全部状态',
-    'log.allTypes': '全部类型',
-    'log.allClients': '全部客户端',
-    'log.allDomains': '全部域名',
-    'log.allRules': '全部规则/上游',
-    'log.statusFail': '失败',
+    'query.title': '最近查询',
+    'query.timeRange': '时间范围',
+    'query.rangeAll': '全部时间',
+    'query.range15m': '最近 15 分钟',
+    'query.range1h': '最近 1 小时',
+    'query.range6h': '最近 6 小时',
+    'query.range24h': '最近 24 小时',
+    'query.range7d': '最近 7 天',
+    'query.rangeCustom': '自定义范围',
+    'query.rangeFrom': '起始时间',
+    'query.rangeTo': '结束时间',
+    'query.filterDomain': '按域名过滤',
+    'query.allSources': '全部来源',
+    'query.allStatus': '全部状态',
+    'query.allTypes': '全部类型',
+    'query.allClients': '全部客户端',
+    'query.allDomains': '全部域名',
+    'query.allRules': '全部规则/上游',
+    'query.statusFail': '失败',
     'filter.reset': '重置',
     'filter.confirm': '确定',
-    'log.autoRefresh': '实时更新',
-    'log.export': '导出',
-    'log.exported': '已导出 {n} 条查询',
-    'log.liveConnected': '实时数据流已连接',
-    'log.liveFallback': '数据流已断开，正在定时刷新',
-    'log.livePaused': '实时更新已暂停',
-    'log.viewAll': '查看完整日志 →',
-    'syslog.auditTitle': '操作日志',
-    'syslog.consoleTitle': 'Console 输出',
-    'syslog.type': '类型',
-    'syslog.message': '内容',
-    'syslog.emptyEvents': '暂无操作记录',
-    'syslog.emptyConsole': '暂无 console 输出',
-    'syslog.refresh': '刷新',
-    'log.empty': '暂无查询记录',
-    'log.time': '时间',
-    'log.client': '客户端',
-    'log.domain': '域名',
-    'log.type': '类型',
-    'log.source': '来源',
-    'log.ruleUpstream': '规则 / 上游',
-    'log.result': '结果',
-    'log.status': '状态',
-    'log.latency': '耗时',
+    'query.autoRefresh': '实时更新',
+    'query.export': '导出',
+    'query.exported': '已导出 {n} 条查询',
+    'query.liveConnected': '实时数据流已连接',
+    'query.liveFallback': '数据流已断开，正在定时刷新',
+    'query.livePaused': '实时更新已暂停',
+    'query.viewAll': '查看全部查询 →',
+    'query.empty': '暂无查询记录',
+    'query.time': '时间',
+    'query.client': '客户端',
+    'query.domain': '域名',
+    'query.type': '类型',
+    'query.source': '来源',
+    'query.ruleUpstream': '规则 / 上游',
+    'query.result': '结果',
+    'query.status': '状态',
+    'query.latency': '耗时',
+    'logs.operationTitle': '操作日志',
+    'logs.consoleTitle': 'Console 输出',
+    'logs.type': '类型',
+    'logs.message': '内容',
+    'logs.emptyOperations': '暂无操作记录',
+    'logs.emptyConsole': '暂无 console 输出',
+    'logs.refresh': '刷新',
+    'logs.autoRefresh': '实时更新',
+    'logs.liveConnected': '实时数据流已连接',
+    'logs.liveFallback': '数据流已断开，正在定时刷新',
+    'logs.livePaused': '实时更新已暂停',
+    'logs.time': '时间',
     'source.fixed': '规则',
     'source.cache': '缓存',
     'source.forward': '转发',
@@ -1702,12 +1727,12 @@ const I18N = {
     'settings.upstreamPlaceholder': '如 223.5.5.5 或 8.8.8.8:53',
     'settings.remove': '删除',
     'settings.addUpstream': '+ 添加上游',
-    'settings.cacheLogging': '缓存与日志',
+    'settings.cacheQueries': '缓存与查询',
     'settings.forwardTimeout': '单次转发超时（毫秒，500-30000）',
     'settings.ttlRange': '缓存 TTL 下限 / 上限（秒）',
     'settings.ttlHint': '实际缓存时长 = 应答最小 TTL，并夹在该区间内',
-    'settings.logRetentionDays': '查询日志保留天数',
-    'settings.logRetentionHint': '超过该天数的记录会自动清除；设为 0 可关闭按时间清理（仍会有内部条数安全上限）',
+    'settings.queryRetentionDays': '查询保留天数',
+    'settings.queryRetentionHint': '超过该天数的查询会自动清除；设为 0 可关闭按时间清理（仍会有内部条数安全上限）',
     'settings.saveSettings': '保存设置',
     'settings.saving': '保存中...',
     'settings.portsTitle': '服务端口',
@@ -1726,6 +1751,10 @@ const I18N = {
     'settings.cacheMgmt': '缓存管理',
     'settings.cacheInfo': '{entries} 条 · 命中 {hits} 次 · 命中率 {rate}%',
     'settings.flushCache': '清空缓存',
+    'settings.queries': '查询',
+    'settings.queriesInfo': '当前保留 {n} 条查询。重置会清空全部查询及聚合查询计数，不影响缓存数据。',
+    'settings.resetQueries': '重置查询',
+    'settings.resettingQueries': '重置中...',
     'settings.changePassword': '修改密码',
     'settings.security': '安全',
     'settings.sessionTtl': '会话有效期（小时，1-720）',
@@ -1746,6 +1775,8 @@ const I18N = {
     'toast.passwordMismatch': '两次输入的新密码不一致',
     'toast.flushConfirm': '确定清空全部 DNS 缓存吗？',
     'toast.flushed': '已清空 {n} 条缓存',
+    'toast.resetQueriesConfirm': '确定重置全部查询和聚合查询计数吗？缓存数据不受影响。此操作无法撤销。',
+    'toast.queriesReset': '已清除 {n} 条查询并重置查询计数',
     'api.requestFailed': '请求失败 ({status})',
     'api.signInFailed': '登录失败',
     'dur.d': '天', 'dur.h': '时', 'dur.m': '分', 'dur.s': '秒',
@@ -1778,13 +1809,13 @@ const app = createApp({
       trendMetric: 'total',
       exited: false,
       serverUnavailable: false,
-      logs: [], filteredLogs: [],
-      syslog: { console: [], events: [] },
-      logFilter: { domain: '', source: '', status: '', type: '', client: '', rule: '', rangePreset: '', customFrom: '', customTo: '' },
+      queries: [], filteredQueries: [],
+      logs: { consoleLogs: [], operationLogs: [] },
+      queryFilter: { domain: '', source: '', status: '', type: '', client: '', rule: '', rangePreset: '', customFrom: '', customTo: '' },
       domainsSearch: '', clientsSearch: '',
       domainsFailuresFilter: '', clientsFailuresFilter: '',
       tableSort: {
-        logs: { key: null, dir: 'desc' },
+        queries: { key: null, dir: 'desc' },
         domains: { key: 'count', dir: 'desc' },
         clients: { key: 'count', dir: 'desc' },
       },
@@ -1795,10 +1826,10 @@ const app = createApp({
       confirmBox: { visible: false, text: '', action: null, danger: false },
       settings: {
         upstreams: [], forwardTimeoutMs: 3000,
-        ttlMin: 10, ttlMax: 3600, logRetentionDays: 7, dnsPort: 53, webPort: 8080,
+        ttlMin: 10, ttlMax: 3600, queryRetentionDays: 7, dnsPort: 53, webPort: 8080,
         bindAddress: '0.0.0.0', webBindAddress: '0.0.0.0', sessionTtlHours: 24,
       },
-      savingSettings: false, savingPw: false,
+      savingSettings: false, savingPw: false, resettingQueries: false,
       // Per-field feedback after a save: clamped values (orange) and a DNS
       // address/port that failed to re-listen (red)
       fieldAdjusted: {},
@@ -1818,14 +1849,15 @@ const app = createApp({
         : this.t('stats.dnsFail', { addr, port: this.dnsStatus.port, error: this.dnsStatus.error || '?' });
     },
     liveStatusTitle() {
-      if (!this.autoRefresh) return this.t('log.livePaused');
-      return this.liveConnected ? this.t('log.liveConnected') : this.t('log.liveFallback');
+      const namespace = this.tab === 'logs' ? 'logs' : 'query';
+      if (!this.autoRefresh) return this.t(`${namespace}.livePaused`);
+      return this.liveConnected ? this.t(`${namespace}.liveConnected`) : this.t(`${namespace}.liveFallback`);
     },
-    visibleLogs() {
-      return this.logFilterActive ? this.filteredLogs : this.logs;
+    visibleQueries() {
+      return this.queryFilterActive ? this.filteredQueries : this.queries;
     },
-    sortedVisibleLogs() {
-      return sortRows(this.visibleLogs, this.tableSort.logs, 'logs');
+    sortedVisibleQueries() {
+      return sortRows(this.visibleQueries, this.tableSort.queries, 'queries');
     },
     filteredDomains() {
       const q = this.domainsSearch.trim().toLowerCase();
@@ -1843,7 +1875,7 @@ const app = createApp({
     },
     sourceFilterOptions() {
       return [
-        { value: '', label: this.t('log.allSources') },
+        { value: '', label: this.t('query.allSources') },
         { value: 'fixed', label: this.t('source.fixed') },
         { value: 'cache', label: this.t('source.cache') },
         { value: 'forward', label: this.t('source.forward') },
@@ -1851,30 +1883,30 @@ const app = createApp({
     },
     statusFilterOptions() {
       return [
-        { value: '', label: this.t('log.allStatus') },
+        { value: '', label: this.t('query.allStatus') },
         { value: 'ok', label: this.t('rcode.ok') },
-        { value: 'fail', label: this.t('log.statusFail') },
+        { value: 'fail', label: this.t('query.statusFail') },
       ];
     },
     typeFilterOptions() {
       return [
-        { value: '', label: this.t('log.allTypes') },
+        { value: '', label: this.t('query.allTypes') },
         { value: 'A', label: 'A' },
         { value: 'AAAA', label: 'AAAA' },
         { value: 'CNAME', label: 'CNAME' },
       ];
     },
     clientFilterOptions() {
-      const values = [...new Set(this.logs.map(l => l.client).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-      return [{ value: '', label: this.t('log.allClients') }, ...values.map(v => ({ value: v, label: v }))];
+      const values = [...new Set(this.queries.map(query => query.client).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      return [{ value: '', label: this.t('query.allClients') }, ...values.map(v => ({ value: v, label: v }))];
     },
     domainFilterOptions() {
-      const values = [...new Set(this.logs.map(l => l.domain).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-      return [{ value: '', label: this.t('log.allDomains') }, ...values.map(v => ({ value: v, label: v }))];
+      const values = [...new Set(this.queries.map(query => query.domain).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      return [{ value: '', label: this.t('query.allDomains') }, ...values.map(v => ({ value: v, label: v }))];
     },
     ruleFilterOptions() {
-      const values = [...new Set(this.logs.map(l => l.rule || l.upstream || l.error || '').filter(Boolean))].sort((a, b) => a.localeCompare(b));
-      return [{ value: '', label: this.t('log.allRules') }, ...values.map(v => ({ value: v, label: v }))];
+      const values = [...new Set(this.queries.map(query => query.rule || query.upstream || query.error || '').filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      return [{ value: '', label: this.t('query.allRules') }, ...values.map(v => ({ value: v, label: v }))];
     },
     failuresFilterOptions() {
       return [
@@ -1883,11 +1915,11 @@ const app = createApp({
         { value: 'no', label: this.t('analytics.filterNoFailures') },
       ];
     },
-    recentLogs() {
-      return this.logs.slice(0, 20);
+    recentQueries() {
+      return this.queries.slice(0, 20);
     },
-    logFilterActive() {
-      return Boolean(this.logFilter.domain.trim() || this.logFilter.source || this.logFilter.status || this.logFilter.type || this.logFilter.client || this.logFilter.rule || this.logFilter.rangePreset);
+    queryFilterActive() {
+      return Boolean(this.queryFilter.domain.trim() || this.queryFilter.source || this.queryFilter.status || this.queryFilter.type || this.queryFilter.client || this.queryFilter.rule || this.queryFilter.rangePreset);
     },
     valuePlaceholder() {
       const t = this.ruleModal.form.type;
@@ -1959,32 +1991,32 @@ const app = createApp({
         this.stopLiveStream();
       }
     },
-    'logFilter.domain'() {
-      this.scheduleLogFilterRefresh();
+    'queryFilter.domain'() {
+      this.scheduleQueryFilterRefresh();
     },
-    'logFilter.source'() {
-      this.scheduleLogFilterRefresh();
+    'queryFilter.source'() {
+      this.scheduleQueryFilterRefresh();
     },
-    'logFilter.status'() {
-      this.scheduleLogFilterRefresh();
+    'queryFilter.status'() {
+      this.scheduleQueryFilterRefresh();
     },
-    'logFilter.type'() {
-      this.scheduleLogFilterRefresh();
+    'queryFilter.type'() {
+      this.scheduleQueryFilterRefresh();
     },
-    'logFilter.client'() {
-      this.scheduleLogFilterRefresh();
+    'queryFilter.client'() {
+      this.scheduleQueryFilterRefresh();
     },
-    'logFilter.rule'() {
-      this.scheduleLogFilterRefresh();
+    'queryFilter.rule'() {
+      this.scheduleQueryFilterRefresh();
     },
-    'logFilter.rangePreset'() {
-      this.scheduleLogFilterRefresh();
+    'queryFilter.rangePreset'() {
+      this.scheduleQueryFilterRefresh();
     },
-    'logFilter.customFrom'() {
-      this.scheduleLogFilterRefresh();
+    'queryFilter.customFrom'() {
+      this.scheduleQueryFilterRefresh();
     },
-    'logFilter.customTo'() {
-      this.scheduleLogFilterRefresh();
+    'queryFilter.customTo'() {
+      this.scheduleQueryFilterRefresh();
     },
   },
   async mounted() {
@@ -2038,15 +2070,15 @@ const app = createApp({
       // just when new entries arrive - re-apply locally so aged-out rows
       // drop off even during a quiet period. No network round-trip needed:
       // the server-side window was already fetched wide enough to cover it.
-      if (this.logFilter.rangePreset && this.logFilter.rangePreset !== 'custom')
-        this.filteredLogs = this.logs.filter(item => this.matchesLogFilter(item));
+      if (this.queryFilter.rangePreset && this.queryFilter.rangePreset !== 'custom')
+        this.filteredQueries = this.queries.filter(item => this.matchesQueryFilter(item));
     }, 5000);
   },
   beforeUnmount() {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     clearInterval(this._fallbackTimer);
     clearInterval(this._liveWatchdogTimer);
-    clearTimeout(this._logFilterTimer);
+    clearTimeout(this._queryFilterTimer);
     this.stopLiveStream();
   },
   methods: {
@@ -2217,7 +2249,7 @@ const app = createApp({
     },
     async enterApp() {
       this.authed = true;
-      await Promise.allSettled([this.refreshStats(), this.refreshLogs(), this.loadRules(), this.loadConfig(), this.loadSystemLog()]);
+      await Promise.allSettled([this.refreshStats(), this.refreshQueries(), this.loadRules(), this.loadConfig(), this.loadLogs()]);
       if (this.autoRefresh && !document.hidden) this.startLiveStream();
     },
     expireSession() {
@@ -2240,9 +2272,9 @@ const app = createApp({
       this._fallbackRefreshing = true;
       try {
         if (this.tab === 'dashboard' || this.tab === 'queries' || this.tab === 'domains' || this.tab === 'clients')
-          await Promise.allSettled([this.refreshStats(), this.refreshLogs()]);
+          await Promise.allSettled([this.refreshStats(), this.refreshQueries()]);
         else if (this.tab === 'logs')
-          await this.loadSystemLog();
+          await this.loadLogs();
       } finally {
         this._fallbackRefreshing = false;
       }
@@ -2350,27 +2382,27 @@ const app = createApp({
       this._liveDataVersion = (this._liveDataVersion || 0) + 1;
       if (event === 'snapshot') {
         this.applyLiveState(data);
-        if (Array.isArray(data.logs)) this.logs = data.logs;
-        if (data.syslog) this.syslog = data.syslog;
-        if (this.logFilterActive) this.refreshFilteredLogs();
+        if (Array.isArray(data.queries)) this.queries = data.queries;
+        if (data.logs) this.logs = data.logs;
+        if (this.queryFilterActive) this.refreshFilteredQueries();
       } else if (event === 'stats') {
         this.applyLiveState(data);
       } else if (event === 'queries') {
-        this.mergeQueryLogs(data.entries || []);
-        if (data.dropped) this.refreshLogs();
-      } else if (event === 'syslog') {
-        this.syslog = {
-          console: this.mergeChronological(this.syslog.console, data.console || [], 500),
-          events: this.mergeChronological(this.syslog.events, data.events || [], 500),
+        this.mergeQueries(data.entries || []);
+        if (data.dropped) this.refreshQueries();
+      } else if (event === 'logs') {
+        this.logs = {
+          consoleLogs: this.mergeChronological(this.logs.consoleLogs, data.consoleLogs || [], 500),
+          operationLogs: this.mergeChronological(this.logs.operationLogs, data.operationLogs || [], 500),
         };
-        if (data.dropped) this.loadSystemLog();
+        if (data.dropped) this.loadLogs();
       }
     },
-    mergeQueryLogs(entries) {
-      this.logs = this.mergeNewest(this.logs, entries, 200);
-      if (this.logFilterActive) {
-        const matching = entries.filter(item => this.matchesLogFilter(item));
-        this.filteredLogs = this.mergeNewest(this.filteredLogs, matching, 200);
+    mergeQueries(entries) {
+      this.queries = this.mergeNewest(this.queries, entries, 200);
+      if (this.queryFilterActive) {
+        const matching = entries.filter(item => this.matchesQueryFilter(item));
+        this.filteredQueries = this.mergeNewest(this.filteredQueries, matching, 200);
       }
     },
     mergeNewest(current, incoming, limit) {
@@ -2401,102 +2433,102 @@ const app = createApp({
         if (data.analytics) this.analytics = data.analytics;
       } catch (_) { /* silent polling failure */ }
     },
-    async refreshLogs() {
+    async refreshQueries() {
       const liveVersion = this._liveDataVersion || 0;
       try {
-        const data = await this.api('/api/logs?limit=200');
-        this.logs = (this._liveDataVersion || 0) === liveVersion
-          ? data.logs
-          : this.mergeNewest(data.logs, this.logs, 200);
-        if (this.logFilterActive) await this.refreshFilteredLogs();
+        const data = await this.api('/api/queries?limit=200');
+        this.queries = (this._liveDataVersion || 0) === liveVersion
+          ? data.queries
+          : this.mergeNewest(data.queries, this.queries, 200);
+        if (this.queryFilterActive) await this.refreshFilteredQueries();
       } catch (_) { /* silent polling failure */ }
     },
     // Not a computed prop: presets are relative to "now", so this must be
     // re-evaluated fresh on every call rather than cached.
-    computeLogTimeRange() {
-      const preset = this.logFilter.rangePreset;
+    computeQueryTimeRange() {
+      const preset = this.queryFilter.rangePreset;
       if (!preset) return { since: 0, until: 0 };
       if (preset === 'custom') {
-        const since = this.logFilter.customFrom ? new Date(this.logFilter.customFrom).getTime() : 0;
-        const until = this.logFilter.customTo ? new Date(this.logFilter.customTo).getTime() : 0;
+        const since = this.queryFilter.customFrom ? new Date(this.queryFilter.customFrom).getTime() : 0;
+        const until = this.queryFilter.customTo ? new Date(this.queryFilter.customTo).getTime() : 0;
         return { since: Number.isFinite(since) ? since : 0, until: Number.isFinite(until) ? until : 0 };
       }
       const durationsMs = { '15m': 15 * 60000, '1h': 3600000, '6h': 6 * 3600000, '24h': 24 * 3600000, '7d': 7 * 86400000 };
       const ms = durationsMs[preset] || 0;
       return { since: ms ? Date.now() - ms : 0, until: 0 };
     },
-    matchesLogFilter(log) {
-      const domain = this.logFilter.domain.trim().toLowerCase();
-      if (domain && !String(log.domain || '').toLowerCase().includes(domain)) return false;
-      if (this.logFilter.source && log.source !== this.logFilter.source) return false;
-      if (this.logFilter.status === 'ok' && log.rcode !== 0) return false;
-      if (this.logFilter.status === 'fail' && log.rcode === 0) return false;
-      if (this.logFilter.type && log.type !== this.logFilter.type) return false;
-      if (this.logFilter.client && log.client !== this.logFilter.client) return false;
-      if (this.logFilter.rule && (log.rule || log.upstream || log.error || '') !== this.logFilter.rule) return false;
-      const { since, until } = this.computeLogTimeRange();
-      if (since && log.t < since) return false;
-      if (until && log.t > until) return false;
+    matchesQueryFilter(query) {
+      const domain = this.queryFilter.domain.trim().toLowerCase();
+      if (domain && !String(query.domain || '').toLowerCase().includes(domain)) return false;
+      if (this.queryFilter.source && query.source !== this.queryFilter.source) return false;
+      if (this.queryFilter.status === 'ok' && query.rcode !== 0) return false;
+      if (this.queryFilter.status === 'fail' && query.rcode === 0) return false;
+      if (this.queryFilter.type && query.type !== this.queryFilter.type) return false;
+      if (this.queryFilter.client && query.client !== this.queryFilter.client) return false;
+      if (this.queryFilter.rule && (query.rule || query.upstream || query.error || '') !== this.queryFilter.rule) return false;
+      const { since, until } = this.computeQueryTimeRange();
+      if (since && query.t < since) return false;
+      if (until && query.t > until) return false;
       return true;
     },
-    scheduleLogFilterRefresh() {
-      clearTimeout(this._logFilterTimer);
-      if (!this.logFilterActive) {
-        this.filteredLogs = [];
+    scheduleQueryFilterRefresh() {
+      clearTimeout(this._queryFilterTimer);
+      if (!this.queryFilterActive) {
+        this.filteredQueries = [];
         return;
       }
-      this.filteredLogs = this.logs.filter(item => this.matchesLogFilter(item));
+      this.filteredQueries = this.queries.filter(item => this.matchesQueryFilter(item));
       if (!this.authed) return;
-      this._logFilterTimer = setTimeout(() => this.refreshFilteredLogs(), 250);
+      this._queryFilterTimer = setTimeout(() => this.refreshFilteredQueries(), 250);
     },
-    // Shared by refreshFilteredLogs() and exportLogs(): builds /api/logs params from logFilter.
-    buildLogQueryParams(limit) {
+    // Shared by refreshFilteredQueries() and exportQueries().
+    buildQueryParams(limit) {
       const params = new URLSearchParams({ limit: String(limit) });
-      const domain = this.logFilter.domain.trim();
+      const domain = this.queryFilter.domain.trim();
       if (domain) params.set('domain', domain);
-      if (this.logFilter.source) params.set('source', this.logFilter.source);
-      if (this.logFilter.status) params.set('status', this.logFilter.status);
-      if (this.logFilter.type) params.set('type', this.logFilter.type);
-      if (this.logFilter.client) params.set('client', this.logFilter.client);
-      if (this.logFilter.rule) params.set('rule', this.logFilter.rule);
-      const { since, until } = this.computeLogTimeRange();
+      if (this.queryFilter.source) params.set('source', this.queryFilter.source);
+      if (this.queryFilter.status) params.set('status', this.queryFilter.status);
+      if (this.queryFilter.type) params.set('type', this.queryFilter.type);
+      if (this.queryFilter.client) params.set('client', this.queryFilter.client);
+      if (this.queryFilter.rule) params.set('rule', this.queryFilter.rule);
+      const { since, until } = this.computeQueryTimeRange();
       if (since) params.set('since', String(since));
       if (until) params.set('until', String(until));
       return params;
     },
-    async refreshFilteredLogs() {
-      const domain = this.logFilter.domain.trim();
-      const source = this.logFilter.source;
-      const status = this.logFilter.status;
-      const type = this.logFilter.type;
-      const client = this.logFilter.client;
-      const rule = this.logFilter.rule;
-      const rangePreset = this.logFilter.rangePreset;
-      const customFrom = this.logFilter.customFrom;
-      const customTo = this.logFilter.customTo;
+    async refreshFilteredQueries() {
+      const domain = this.queryFilter.domain.trim();
+      const source = this.queryFilter.source;
+      const status = this.queryFilter.status;
+      const type = this.queryFilter.type;
+      const client = this.queryFilter.client;
+      const rule = this.queryFilter.rule;
+      const rangePreset = this.queryFilter.rangePreset;
+      const customFrom = this.queryFilter.customFrom;
+      const customTo = this.queryFilter.customTo;
       const liveVersion = this._liveDataVersion || 0;
       if (!domain && !source && !status && !type && !client && !rule && !rangePreset) return;
-      const params = this.buildLogQueryParams(200);
+      const params = this.buildQueryParams(200);
       try {
-        const data = await this.api('/api/logs?' + params.toString());
+        const data = await this.api('/api/queries?' + params.toString());
         if (
-          domain === this.logFilter.domain.trim() && source === this.logFilter.source &&
-          status === this.logFilter.status && type === this.logFilter.type && client === this.logFilter.client &&
-          rule === this.logFilter.rule && rangePreset === this.logFilter.rangePreset &&
-          customFrom === this.logFilter.customFrom && customTo === this.logFilter.customTo
+          domain === this.queryFilter.domain.trim() && source === this.queryFilter.source &&
+          status === this.queryFilter.status && type === this.queryFilter.type && client === this.queryFilter.client &&
+          rule === this.queryFilter.rule && rangePreset === this.queryFilter.rangePreset &&
+          customFrom === this.queryFilter.customFrom && customTo === this.queryFilter.customTo
         ) {
-          this.filteredLogs = (this._liveDataVersion || 0) === liveVersion
-            ? data.logs
-            : this.mergeNewest(data.logs, this.filteredLogs, 200);
+          this.filteredQueries = (this._liveDataVersion || 0) === liveVersion
+            ? data.queries
+            : this.mergeNewest(data.queries, this.filteredQueries, 200);
         }
       } catch (_) { /* keep the immediately filtered local results */ }
     },
     // Export: fetch the current filter's matches fresh (up to the server's max), then download as a dated JSON file
-    async exportLogs() {
+    async exportQueries() {
       try {
-        const data = await this.api('/api/logs?' + this.buildLogQueryParams(1000).toString());
+        const data = await this.api('/api/queries?' + this.buildQueryParams(1000).toString());
         const blob = new Blob(
-          [JSON.stringify({ exportedAt: new Date().toISOString(), logs: data.logs }, null, 2)],
+          [JSON.stringify({ exportedAt: new Date().toISOString(), queries: data.queries }, null, 2)],
           { type: 'application/json' },
         );
         const a = document.createElement('a');
@@ -2504,20 +2536,20 @@ const app = createApp({
         a.download = 'kaven-dns-queries-' + new Date().toISOString().slice(0, 10) + '.json';
         a.click();
         URL.revokeObjectURL(a.href);
-        this.showToast(this.t('log.exported', { n: data.logs.length }));
+        this.showToast(this.t('query.exported', { n: data.queries.length }));
       } catch (e) {
         this.showToast(e.message, 'error');
       }
     },
-    async loadSystemLog() {
+    async loadLogs() {
       const liveVersion = this._liveDataVersion || 0;
       try {
-        const data = await this.api('/api/syslog?limit=500');
-        this.syslog = (this._liveDataVersion || 0) === liveVersion
+        const data = await this.api('/api/logs?limit=500');
+        this.logs = (this._liveDataVersion || 0) === liveVersion
           ? data
           : {
-            console: this.mergeChronological(data.console, this.syslog.console, 500),
-            events: this.mergeChronological(data.events, this.syslog.events, 500),
+            consoleLogs: this.mergeChronological(data.consoleLogs, this.logs.consoleLogs, 500),
+            operationLogs: this.mergeChronological(data.operationLogs, this.logs.operationLogs, 500),
           };
       } catch (_) { /* silent polling failure */ }
     },
@@ -2674,7 +2706,7 @@ const app = createApp({
           upstreams: [...c.upstreams],
           forwardTimeoutMs: c.forwardTimeoutMs,
           ttlMin: c.ttlMin, ttlMax: c.ttlMax,
-          logRetentionDays: c.logRetentionDays,
+          queryRetentionDays: c.queryRetentionDays,
           dnsPort: c.dnsPort, webPort: c.webPort, bindAddress: c.bindAddress || '0.0.0.0',
           webBindAddress: c.webBindAddress || '0.0.0.0',
           sessionTtlHours: c.sessionTtlHours,
@@ -2693,7 +2725,7 @@ const app = createApp({
           upstreams: this.settings.upstreams.map(s => s.trim()).filter(Boolean),
           forwardTimeoutMs: this.settings.forwardTimeoutMs,
           ttlMin: this.settings.ttlMin, ttlMax: this.settings.ttlMax,
-          logRetentionDays: this.settings.logRetentionDays,
+          queryRetentionDays: this.settings.queryRetentionDays,
           dnsPort: this.settings.dnsPort, webPort: this.settings.webPort,
           bindAddress: this.settings.bindAddress,
           webBindAddress: this.settings.webBindAddress, sessionTtlHours: this.settings.sessionTtlHours,
@@ -2756,6 +2788,22 @@ const app = createApp({
           this.refreshStats();
         } catch (e) {
           this.showToast(e.message, 'error');
+        }
+      }, true);
+    },
+    resetQueries() {
+      this.ask(this.t('toast.resetQueriesConfirm'), async () => {
+        this.resettingQueries = true;
+        try {
+          const data = await this.api('/api/queries/reset', { method: 'POST' });
+          this.queries = [];
+          this.filteredQueries = [];
+          await Promise.allSettled([this.refreshStats(), this.refreshQueries()]);
+          this.showToast(this.t('toast.queriesReset', { n: data.cleared }));
+        } catch (e) {
+          this.showToast(e.message, 'error');
+        } finally {
+          this.resettingQueries = false;
         }
       }, true);
     },

@@ -15,15 +15,15 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 - **Upstream racing**: default upstreams are queried in parallel and the fastest successful response wins; TC-flagged answers are automatically retried over TCP
 - **Bilingual Web console** (Chinese / English, simple password authentication):
   - Language switcher on the login page and in the header; the preference is remembered and auto-detected from the browser on first visit
-  - Dashboard: at-a-glance overview — query volume, rule/cache/forward hits, failures, average latency, cache hit rate, a top-6 preview of top domains / active clients, and the 20 most recent log entries; server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version)
-  - Query Log tab: a 60-minute query/latency/failure trend chart, plus the complete live query log as a sortable table (click any column header) with a domain search box, a time-range selector (last 15m/1h/6h/24h/7d, or a custom from/to range), and column-header filter popovers (funnel icon → pick a value → Reset/Confirm) on Domain, Client, Type, Source, Rule/Upstream and Status (OK or failed)
+  - Dashboard: at-a-glance overview — query volume, rule/cache/forward hits, failures, average latency, cache hit rate, a top-6 preview of top domains / active clients, and the 20 most recent queries; server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version)
+  - Queries tab: a 60-minute query/latency/failure trend chart, plus the complete live query history as a sortable table (click any column header) with a domain search box, a time-range selector (last 15m/1h/6h/24h/7d, or a custom from/to range), and column-header filter popovers (funnel icon → pick a value → Reset/Confirm) on Domain, Client, Type, Source, Rule/Upstream and Status (OK or failed)
   - Domains tab / Clients tab: the complete top-domains and active-clients rankings as sortable, searchable tables with the same column-header filter popover on Failures (all / has failures / no failures), each on its own page (not capped to the Dashboard's top-6 preview)
   - Authenticated SSE streams batched live updates to visible consoles, with automatic reconnect, periodic REST fallback, and a persistent bilingual warning while the server is unreachable; analytics use the retained query window, which survives a normal restart (saved on clean shutdown, restored on the next start) and is only lost on a crash
   - Rules management: table + modal editor, enable toggle, remarks, import/export as JSON (merge by domains+type, or replace all)
-  - Settings: upstream list, cache and log parameters, ports, password change, cache flush, resolve test
-  - System Logs: operation/config-change audit trail plus the console output (what a hidden terminal would have shown), with a dark console viewer
+  - Settings: upstream list, cache and query-retention parameters, ports, password change, cache flush, query-history reset, resolve test
+  - Logs tab: operation/config-change records plus console output (what a hidden terminal would have shown), with a dark console viewer
   - API error messages are localized too, negotiated from the `Accept-Language` header
-- **No database**: rules, config and the query log persist to `data/*.json` (atomic writes, restored on the next start after a normal exit/restart)
+- **No database**: rules, config and query history persist to `data/*.json` (atomic writes, restored on the next start after a normal exit/restart)
 
 ## Quick Start
 
@@ -47,7 +47,7 @@ Once setup is complete, the server is already answering queries with the default
 - **Sign in** to the Web console at `http://<host>:<webPort>` (default port `8080`) with the admin password you set during setup.
 - **Add rules** on the Rules page for any domain you want to control: `Fixed answer` for internal hostnames or blocking, `Forward` to send specific domains to a different upstream. Rules take effect immediately, no restart needed — see [Rule Matching](#rule-matching) for how patterns and priority work.
 - **Everything unmatched** falls through to the default upstream group (see [Configuration](#configuration)) with caching and upstream racing applied automatically.
-- **Verify and monitor**: use the Settings page's resolve test, an external tool such as `nslookup` (see [Verification](#verification) below), or watch live traffic on the Dashboard, Query Log, Domains and Clients tabs.
+- **Verify and monitor**: use the Settings page's resolve test, an external tool such as `nslookup` (see [Verification](#verification) below), or watch live traffic on the Dashboard, Queries, Domains and Clients tabs.
 
 ### Configure your system to use it
 
@@ -94,7 +94,7 @@ docker run -d \
   kavenzero/kaven-dns:latest
 ```
 
-Open `http://localhost:8080` to complete the first-run setup. The named volume preserves configuration, rules, sessions, and the query log across container upgrades (`docker stop`/recreate sends `SIGTERM`, which the image's `dumb-init` entrypoint forwards to the Node process so it can save its state before exiting; `docker kill` skips this and loses unsaved history, same as any other unclean termination).
+Open `http://localhost:8080` to complete the first-run setup. The named volume preserves configuration, rules, sessions, and Queries history across container upgrades (`docker stop`/recreate sends `SIGTERM`, which the image's `dumb-init` entrypoint forwards to the Node process so it can save its state before exiting; `docker kill` skips this and loses unsaved history, same as any other unclean termination).
 
 The container runs as a non-root user. If you do not want to grant permission to bind port 53, run DNS on an unprivileged port instead:
 
@@ -146,7 +146,7 @@ A rule holds a group of domain patterns; a query matches the rule when it matche
 | `upstreams` | `223.5.5.5, 119.29.29.29, 114.114.114.114` | Default upstream group (`ip` or `ip:port`) |
 | `forwardTimeoutMs` | 3000 | Timeout per upstream forward |
 | `ttlMin` / `ttlMax` | 10 / 3600 | Cache TTL clamp range (seconds) |
-| `logRetentionDays` | 7 | Days of query log history to retain; 0 disables time-based trimming. Entries are also trimmed automatically (oldest first) if the system is low on free memory or this process's own memory usage grows large, so the log can hold as much history as available memory allows rather than a small fixed count |
+| `queryRetentionDays` | 7 | Days of query history to retain; 0 disables time-based trimming. Entries are also trimmed automatically (oldest first) if the system is low on free memory or this process's own memory usage grows large, so Queries can hold as much history as available memory allows rather than a small fixed count |
 | `sessionTtlHours` | 24 | Web console session validity in hours; renewed on activity (idle timeout) and persisted across restarts |
 
 Environment variables: `KAVEN_DNS_PORT` / `KAVEN_WEB_PORT` temporarily override the ports (useful for debugging); `KAVEN_DATA_DIR` relocates the data directory (defaults to `<repo>/data`).
@@ -165,10 +165,11 @@ Error messages are localized when an `Accept-Language: zh` (or `en`) header is s
 | GET/POST | `/api/rules` | List / create rules |
 | POST | `/api/rules/import` | Import rules `{rules, mode: merge\|replace}` |
 | PUT/DELETE | `/api/rules/:id` | Update / delete |
-| GET | `/api/logs?domain=&source=&status=&type=&client=&rule=&since=&until=&limit=` | Query log (`status`: `ok`\|`fail`; `since`/`until` are epoch ms) |
+| GET | `/api/queries?domain=&source=&status=&type=&client=&rule=&since=&until=&limit=` | Query history (`status`: `ok`\|`fail`; `since`/`until` are epoch ms) |
+| POST | `/api/queries/reset` | Clear query history and reset aggregate query counters |
 | GET | `/api/stats` | Stats, cache info, DNS listener status |
-| GET | `/api/syslog?limit=` | Console output + audit events (operation/config changes) |
-| GET | `/api/events` | Authenticated SSE stream for batched query, stats and system-log updates |
+| GET | `/api/logs?limit=` | Console logs + operation records |
+| GET | `/api/events` | Authenticated SSE stream for batched Queries, stats and Logs updates |
 | POST | `/api/shutdown` | Stop the program |
 | POST | `/api/cache/flush` | Flush the cache |
 | GET/PUT | `/api/config` | Read / update config (incl. password change) |
@@ -191,8 +192,8 @@ src/
 │   └── util.js       # Type maps and summary helpers
 ├── store/
 │   ├── rules.js      # Rule CRUD + JSON persistence (hot reload)
-│   ├── logs.js       # Query log ring buffer + stats
-│   └── syslog.js     # Console output capture + audit event ring buffer
+│   ├── queries.js    # Query history, analytics + persistence
+│   └── logs.js       # Console logs + operation records
 └── web/
     ├── server.js     # Express REST API
     ├── events.js     # Authenticated SSE batching + slow-client recovery
@@ -206,4 +207,5 @@ src/
 
 - The frontend serves Vue 3 locally (`web/public/vendor/`), so the console works in offline / intranet environments
 - Login sessions are stored in `data/sessions.json` (idle timeout, renewed on activity) so server restarts keep you signed in
-- The query log and its stats are saved to `data/querylog.json` on a clean shutdown (SIGINT/SIGTERM) and restored on the next start, so a normal exit/restart doesn't lose history; there is no ongoing per-query disk write, and an unclean termination (crash, `kill -9`) still loses whatever wasn't saved at the last clean shutdown
+- Query history and its stats are saved to `data/queries.json` on a clean shutdown (SIGINT/SIGTERM) and restored on the next start, so a normal exit/restart doesn't lose history; there is no ongoing per-query disk write, and an unclean termination (crash, `kill -9`) still loses whatever wasn't saved at the last clean shutdown
+- Existing `logRetentionDays` settings and `data/querylog.json` snapshots are migrated automatically to `queryRetentionDays` and `data/queries.json`

@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Settings now includes a confirmed Query History reset that clears retained queries and aggregate query counters, persists the reset immediately, and synchronizes all connected consoles
+
+### Changed
+
+- Queries and Logs terminology now matches across tabs, hash routes, REST endpoints, JSON/SSE payloads, frontend state, translations, store modules, tests, and documentation: Queries uses `/api/queries` and Logs uses `/api/logs`
+- `logRetentionDays` is now `queryRetentionDays`, and `data/querylog.json` is now `data/queries.json`; existing configuration and history are migrated automatically
+
+### Testing
+
+- Added reset persistence/rollback, authentication, SSE synchronization, and legacy config/history migration coverage
+
 ## [1.2.1] - 2026-08-27
 
 ### Fixed

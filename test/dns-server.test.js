@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const { Packet, UDPClient, TCPClient } = require('dns2');
 
 const { createDnsServers } = require('../src/dns/server');
-const { LogStore } = require('../src/store/logs');
+const { QueryStore } = require('../src/store/queries');
 
 // dns2 needs the SAME port for its UDP and TCP stacks, unlike letting each
 // bind an independent ephemeral port with `listen(0, ...)`; briefly bind a
@@ -26,9 +26,9 @@ function fakeResolver(handler) {
   return { resolve: handler };
 }
 
-test('answers UDP and TCP queries and records a query log entry', async () => {
+test('answers UDP and TCP queries and records each query', async () => {
   const port = await getFreePort();
-  const logs = new LogStore(20);
+  const queries = new QueryStore(20);
   const resolver = fakeResolver(async domain => ({
     rcode: Packet.RCODE.NOERROR,
     answers: [{ name: domain, type: Packet.TYPE.A, class: Packet.CLASS.IN, ttl: 30, address: '203.0.113.9' }],
@@ -37,7 +37,7 @@ test('answers UDP and TCP queries and records a query log entry', async () => {
     source: 'fixed',
     ruleLabel: 'test-rule',
   }));
-  const dns = createDnsServers({ resolver, logs, port, address: '127.0.0.1' });
+  const dns = createDnsServers({ resolver, queries, port, address: '127.0.0.1' });
   await dns.start();
   try {
     const udpResponse = await UDPClient({ dns: '127.0.0.1', port, timeout: 2000 })('udp.test', 'A');
@@ -47,7 +47,7 @@ test('answers UDP and TCP queries and records a query log entry', async () => {
     const tcpResponse = await TCPClient({ dns: '127.0.0.1', port })('tcp.test', 'A');
     assert.equal(tcpResponse.answers[0].address, '203.0.113.9');
 
-    const entries = logs.list({ limit: 10 });
+    const entries = queries.list({ limit: 10 });
     assert.equal(entries.length, 2);
     assert.deepEqual(entries.map(e => e.domain).sort(), ['tcp.test', 'udp.test']);
     assert.equal(entries[0].rule, 'test-rule');
@@ -70,14 +70,14 @@ test('answers UDP and TCP queries and records a query log entry', async () => {
 
 test('turns a resolver failure into SERVFAIL without crashing the listener', async () => {
   const port = await getFreePort();
-  const logs = new LogStore(20);
+  const queries = new QueryStore(20);
   const resolver = fakeResolver(async () => { throw new Error('boom'); });
-  const dns = createDnsServers({ resolver, logs, port, address: '127.0.0.1' });
+  const dns = createDnsServers({ resolver, queries, port, address: '127.0.0.1' });
   await dns.start();
   try {
     const response = await UDPClient({ dns: '127.0.0.1', port, timeout: 2000 })('broken.test', 'A');
     assert.equal(response.header.rcode, Packet.RCODE.SERVFAIL);
-    const [entry] = logs.list({ limit: 1 });
+    const [entry] = queries.list({ limit: 1 });
     assert.equal(entry.rcode, Packet.RCODE.SERVFAIL);
     assert.equal(entry.error, 'boom');
   } finally {
@@ -88,7 +88,7 @@ test('turns a resolver failure into SERVFAIL without crashing the listener', asy
 test('restart() moves the listener to a new port', async () => {
   const portA = await getFreePort();
   const portB = await getFreePort();
-  const logs = new LogStore(20);
+  const queries = new QueryStore(20);
   const resolver = fakeResolver(async domain => ({
     rcode: Packet.RCODE.NOERROR,
     answers: [{ name: domain, type: Packet.TYPE.A, class: Packet.CLASS.IN, ttl: 30, address: '198.51.100.1' }],
@@ -96,7 +96,7 @@ test('restart() moves the listener to a new port', async () => {
     additionals: [],
     source: 'fixed',
   }));
-  const dns = createDnsServers({ resolver, logs, port: portA, address: '127.0.0.1' });
+  const dns = createDnsServers({ resolver, queries, port: portA, address: '127.0.0.1' });
   await dns.start();
   try {
     await dns.restart(portB, '127.0.0.1');

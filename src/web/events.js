@@ -24,8 +24,8 @@ function encodeEvent(id, event, data) {
 }
 
 function createEventStream({
+  queries,
   logs,
-  syslog,
   cache,
   systemMonitor,
   getDnsStatus,
@@ -33,31 +33,35 @@ function createEventStream({
 }, options = {}) {
   const clients = new Set();
   const maxPending = options.maxPending || DEFAULT_MAX_PENDING;
-  const queries = createBuffer(maxPending);
-  const consoleLines = createBuffer(maxPending);
-  const auditEvents = createBuffer(maxPending);
+  const pendingQueries = createBuffer(maxPending);
+  const pendingConsoleLogs = createBuffer(maxPending);
+  const pendingOperationLogs = createBuffer(maxPending);
   let eventId = 0;
   let stateDirty = false;
   let stateTicks = 0;
 
   const buildState = () => ({
-    stats: logs.getStats(),
-    analytics: logs.getAnalytics(),
+    stats: queries.getStats(),
+    analytics: queries.getAnalytics(),
     cache: cache.info(),
     system: systemMonitor.snapshot(),
     dns: getDnsStatus ? getDnsStatus() : null,
   });
 
+  const buildLogs = () => logs
+    ? logs.snapshot(500)
+    : { consoleLogs: [], operationLogs: [] };
+
   const buildSnapshot = () => ({
     ...buildState(),
-    logs: logs.list({ limit: 200 }),
-    syslog: syslog ? syslog.snapshot(500) : { console: [], events: [] },
+    queries: queries.list({ limit: 200 }),
+    logs: buildLogs(),
   });
 
   const clearPending = () => {
-    queries.take();
-    consoleLines.take();
-    auditEvents.take();
+    pendingQueries.take();
+    pendingConsoleLogs.take();
+    pendingOperationLogs.take();
   };
 
   const removeClient = client => {
@@ -100,24 +104,30 @@ function createEventStream({
     for (const client of clients) send(client, event, data, id);
   }
 
-  const unsubscribeLogs = logs.subscribe(entry => {
+  function broadcastSnapshot() {
+    clearPending();
+    stateDirty = false;
+    broadcast('snapshot', buildSnapshot());
+  }
+
+  const unsubscribeQueries = queries.subscribe(entry => {
     if (!clients.size) return;
-    queries.push(entry);
+    pendingQueries.push(entry);
     stateDirty = true;
   });
 
-  const unsubscribeSyslog = syslog && syslog.subscribe
-    ? syslog.subscribe(update => {
+  const unsubscribeLogs = logs && logs.subscribe
+    ? logs.subscribe(update => {
       if (!clients.size) return;
-      if (update.kind === 'console') consoleLines.push(update.item);
-      else auditEvents.push(update.item);
+      if (update.kind === 'console') pendingConsoleLogs.push(update.item);
+      else if (update.kind === 'operation') pendingOperationLogs.push(update.item);
       stateDirty = true;
     })
     : () => {};
 
   function flushBatches() {
     if (!clients.size) return;
-    const queryBatch = queries.take();
+    const queryBatch = pendingQueries.take();
     if (queryBatch.items.length || queryBatch.dropped) {
       broadcast('queries', {
         entries: queryBatch.items,
@@ -125,13 +135,13 @@ function createEventStream({
       });
     }
 
-    const consoleBatch = consoleLines.take();
-    const eventBatch = auditEvents.take();
-    if (consoleBatch.items.length || eventBatch.items.length || consoleBatch.dropped || eventBatch.dropped) {
-      broadcast('syslog', {
-        console: consoleBatch.items,
-        events: eventBatch.items,
-        dropped: consoleBatch.dropped + eventBatch.dropped,
+    const consoleBatch = pendingConsoleLogs.take();
+    const operationBatch = pendingOperationLogs.take();
+    if (consoleBatch.items.length || operationBatch.items.length || consoleBatch.dropped || operationBatch.dropped) {
+      broadcast('logs', {
+        consoleLogs: consoleBatch.items,
+        operationLogs: operationBatch.items,
+        dropped: consoleBatch.dropped + operationBatch.dropped,
       });
     }
   }
@@ -200,13 +210,13 @@ function createEventStream({
   }
 
   function close() {
+    unsubscribeQueries();
     unsubscribeLogs();
-    unsubscribeSyslog();
     timers.forEach(clearInterval);
     disconnect();
   }
 
-  return { handle, flushBatches, flushState, disconnect, close };
+  return { handle, flushBatches, flushState, broadcastSnapshot, disconnect, close };
 }
 
 module.exports = { createEventStream, encodeEvent };

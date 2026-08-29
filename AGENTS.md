@@ -14,10 +14,11 @@ This file applies to the entire repository. Keep changes small and consistent wi
 
 - `src/index.js` is the composition root. It wires stores, cache, resolver, DNS transports, authentication, Web server, listener restarts, and shutdown handling. Keep domain logic in the owning module rather than growing the entry point.
 - `src/config.js` owns defaults, sanitization, data paths, password hashing, and atomic JSON writes. Reuse `atomicWriteJson` for persistent JSON state.
-- `src/dns/server.js` owns UDP/TCP request handling and query logging. `resolver.js` owns the rule -> fixed/cache/forward pipeline, `matching.js` owns domain precedence, `forwarder.js` owns upstream I/O, and `cache.js` owns TTL/LRU behavior.
+- `src/dns/server.js` owns UDP/TCP request handling and query recording. `resolver.js` owns the rule -> fixed/cache/forward pipeline, `matching.js` owns domain precedence, `forwarder.js` owns upstream I/O, and `cache.js` owns TTL/LRU behavior.
 - `src/store/` owns mutable in-memory state and persistence. Rules are read live by the resolver, so successful CRUD changes take effect without restart.
 - `src/web/server.js` is the HTTP boundary. Keep request validation and status-code decisions here, and inject collaborators through `createWebServer` rather than importing application singletons.
-- `src/web/events.js` owns authenticated SSE batching, heartbeats, and slow-client recovery. Query and system-log stores expose lightweight subscriptions; observers must never block or fail the DNS request path.
+- `src/store/queries.js` owns query history and aggregate query statistics; `src/store/logs.js` owns console logs and operation records. Both expose lightweight subscriptions; observers must never block or fail the DNS request path.
+- `src/web/events.js` owns authenticated SSE batching, heartbeats, and slow-client recovery. Keep its `queries` and `logs` event/snapshot fields aligned with the matching tabs and REST resources.
 - `src/web/auth.js` owns bearer sessions and login throttling. `src/i18n.js` owns localized server messages. `src/system.js` owns host/process metrics.
 
 ## Behavioral Invariants
@@ -25,7 +26,7 @@ This file applies to the entire repository. Keep changes small and consistent wi
 - DNS must continue to listen on both UDP and TCP. Listener changes must avoid leaving one transport half-open and must keep the Web console available when DNS binding fails.
 - Plain domain patterns match the domain and its subdomains; `*.example.com` matches subdomains only. More labels win, then plain patterns beat wildcards, then the later/newer rule wins. CNAME rules also participate in A/AAAA resolution.
 - Forwarded cache entries are scoped by domain, query type, and upstream set. Cache only successful answers, clamp their minimum TTL to the configured range, and preserve authority/additional records as the current resolver does.
-- Configuration is a shared live object. Validate input, call `sanitize`, persist atomically, and apply listener/cache/log changes at runtime where the existing API promises immediate effect.
+- Configuration is a shared live object. Validate input, call `sanitize`, persist atomically, and apply listener/cache/query changes at runtime where the existing API promises immediate effect.
 - Setup status/check/setup and login are the only public API flows. Routes registered after `app.use('/api', auth.middleware)` must remain authenticated. Never return or log password hashes, passwords, bearer tokens, or persisted session tokens.
 - Live console updates use an authenticated fetch/SSE stream plus REST snapshots and fallback. Batch and bound high-frequency events, recover slow clients with a fresh snapshot, and never put bearer tokens in URLs or let stream writes run inline with DNS resolution.
 - All untrusted API input needs server-side validation even when the client validates it. Keep the existing JSON body limit and bounded list/query limits unless a requirement explicitly changes them.

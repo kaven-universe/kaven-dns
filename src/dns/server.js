@@ -22,7 +22,7 @@ function extractClientIp(client) {
   return 'unknown';
 }
 
-function createDnsServers({ resolver, logs, port, address }) {
+function createDnsServers({ resolver, queries, port, address }) {
   async function handle(request, send, client) {
     const started = Date.now();
     const clientIp = extractClientIp(client);
@@ -60,7 +60,7 @@ function createDnsServers({ resolver, logs, port, address }) {
       error = error || e;
     }
 
-    logs.record({
+    queries.record({
       t: started,
       client: clientIp,
       domain,

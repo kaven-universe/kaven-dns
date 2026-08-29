@@ -2,10 +2,10 @@
 
 const net = require('net');
 
-const { DATA_DIR, RULES_FILE, SESSIONS_FILE, QUERYLOG_FILE, loadConfig, verifyPassword } = require('./config');
+const { DATA_DIR, RULES_FILE, SESSIONS_FILE, resolveQueriesFile, loadConfig, verifyPassword } = require('./config');
 const { RulesStore } = require('./store/rules');
-const { LogStore } = require('./store/logs');
-const { createSysLog } = require('./store/syslog');
+const { QueryStore } = require('./store/queries');
+const { createLogStore } = require('./store/logs');
 const { DnsCache } = require('./dns/cache');
 const { Resolver } = require('./dns/resolver');
 const { createDnsServers } = require('./dns/server');
@@ -13,18 +13,18 @@ const { createAuth } = require('./web/auth');
 const { createWebServer } = require('./web/server');
 
 async function main() {
-  // Capture console output into an in-memory ring buffer (visible from the
-  // Web console's System Logs tab).
-  const syslog = createSysLog(600);
-  syslog.captureConsole();
+  // Capture console output into an in-memory ring buffer for the Logs tab.
+  const logs = createLogStore(600);
+  logs.captureConsole();
 
   const { config } = loadConfig();
+  const queriesFile = resolveQueriesFile();
 
   const rulesStore = new RulesStore(RULES_FILE);
-  const logs = new LogStore(undefined, config.logRetentionDays, undefined, QUERYLOG_FILE);
+  const queries = new QueryStore(undefined, config.queryRetentionDays, undefined, queriesFile);
   const cache = new DnsCache(); // fixed size (DnsCache's own default); not user-configurable
   const resolver = new Resolver({ rulesStore, cache, getConfig: () => config });
-  const dns = createDnsServers({ resolver, logs, port: config.dnsPort, address: config.bindAddress });
+  const dns = createDnsServers({ resolver, queries, port: config.dnsPort, address: config.bindAddress });
   const auth = createAuth({
     verifyPassword: password => verifyPassword(password, config.passwordHash),
     getSessionTtlMs: () => config.sessionTtlHours * 3600 * 1000,
@@ -37,24 +37,24 @@ async function main() {
   const web = createWebServer({
     config,
     rulesStore,
+    queries,
     logs,
     cache,
     resolver,
     auth,
-    syslog,
     getDnsStatus: () => dns.status(),
     restartDns: async (port, address) => {
       const attempt = async (addr) => {
         await dns.restart(port, addr);
         const s = dns.status();
-        syslog.record('dns', `listening on ${s.address}:${s.port} (UDP + TCP)`);
+        logs.record('dns', `listening on ${s.address}:${s.port} (UDP + TCP)`);
         return s;
       };
       try {
         const s = await attempt(address);
         return { applied: true, error: '', address: s.address };
       } catch (e) {
-        syslog.record('dns', `failed to listen on ${address || '0.0.0.0'}:${port}: ${e.message}`, 'error');
+        logs.record('dns', `failed to listen on ${address || '0.0.0.0'}:${port}: ${e.message}`, 'error');
         if (e.code === 'EADDRINUSE')
           console.error('Hint: another process is using this port; find it with `netstat -ano | findstr :' + port + '`');
         console.error('The Web console remains available; DNS resolution is NOT served until the port is free.');
@@ -91,7 +91,7 @@ async function main() {
     try {
       runtime.server = await web.listen(newPort, newAddress);
       runtime.currentPort = newPort;
-      syslog.record('web', `console moved: ${consoleUrl(oldPort, runtime.webAddress)} -> ${consoleUrl(runtime.currentPort, newAddress)}`);
+      logs.record('web', `console moved: ${consoleUrl(oldPort, runtime.webAddress)} -> ${consoleUrl(runtime.currentPort, newAddress)}`);
       runtime.webAddress = newAddress;
       return { ok: true, port: runtime.currentPort };
     } catch (e) {
@@ -103,13 +103,13 @@ async function main() {
     }
   };
 
-  syslog.record('startup', `web console at ${consoleUrl(webPort, config.webBindAddress)} (data dir: ${DATA_DIR})`);
+  logs.record('startup', `web console at ${consoleUrl(webPort, config.webBindAddress)} (data dir: ${DATA_DIR})`);
 
   dns.start().then(() => {
     const s = dns.status();
-    syslog.record('dns', `listening on ${s.address}:${s.port} (UDP + TCP)`);
+    logs.record('dns', `listening on ${s.address}:${s.port} (UDP + TCP)`);
   }).catch(e => {
-    syslog.record('dns', `failed to listen on ${config.bindAddress}:${config.dnsPort}: ${e.message}`, 'error');
+    logs.record('dns', `failed to listen on ${config.bindAddress}:${config.dnsPort}: ${e.message}`, 'error');
     if (e.code === 'EADDRINUSE') {
       console.error('Hint: another process is using this port; find it with `netstat -ano | findstr :%d`'.replace('%d', config.dnsPort));
     } else {
@@ -122,20 +122,20 @@ async function main() {
   const sweepTimer = setInterval(() => cache.sweep(), 60 * 1000);
   sweepTimer.unref();
 
-  // The query log has no fixed entry-count ceiling (see store/logs.js), so
+  // Query history has no fixed entry-count ceiling (see store/queries.js), so
   // this is the only thing bounding its growth in practice - check more
   // often than the cache sweep above to react quickly to a traffic burst.
-  const logMemoryTimer = setInterval(() => logs.enforceMemoryBound(), 5 * 1000);
-  logMemoryTimer.unref();
+  const queryMemoryTimer = setInterval(() => queries.enforceMemoryBound(), 5 * 1000);
+  queryMemoryTimer.unref();
 
   function shutdown(signal) {
-    syslog.record('shutdown', `received ${signal}; stopping`);
+    logs.record('shutdown', `received ${signal}; stopping`);
     clearInterval(sweepTimer);
-    clearInterval(logMemoryTimer);
+    clearInterval(queryMemoryTimer);
     try {
-      logs.persist();
+      queries.persist();
     } catch (e) {
-      console.error(`[logs] Failed to save ${QUERYLOG_FILE}: ${e.message}`);
+      console.error(`[queries] Failed to save ${queriesFile}: ${e.message}`);
     }
     try {
       dns.close();

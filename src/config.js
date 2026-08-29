@@ -12,6 +12,8 @@ const DATA_DIR = process.env.KAVEN_DATA_DIR
   ? path.resolve(process.env.KAVEN_DATA_DIR)
   : path.join(__dirname, '..', 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+const QUERIES_FILE = path.join(DATA_DIR, 'queries.json');
+const LEGACY_QUERYLOG_FILE = path.join(DATA_DIR, 'querylog.json');
 
 const DEFAULTS = {
   dnsPort: 53,
@@ -27,9 +29,9 @@ const DEFAULTS = {
   // Cache TTL bounds (seconds); actual value is the answer's minimum TTL clamped here
   ttlMin: 10,
   ttlMax: 3600,
-  // Days of query log history to retain. 0 disables time-based trimming
-  // (entries are then bounded only by LogStore's internal safety ceiling).
-  logRetentionDays: 7,
+  // Days of query history to retain. 0 disables time-based trimming
+  // (entries are then bounded only by QueryStore's internal safety ceiling).
+  queryRetentionDays: 7,
   // Web console session lifetime in hours; sessions are renewed on activity,
   // so this is effectively an idle timeout
   sessionTtlHours: 24,
@@ -90,9 +92,28 @@ function clampInt(value, min, max, dflt) {
   return Number.isInteger(n) && n >= min && n <= max ? n : dflt;
 }
 
+function migrateLegacyConfig(config) {
+  if (config.queryRetentionDays === undefined && config.logRetentionDays !== undefined)
+    config.queryRetentionDays = config.logRetentionDays;
+  delete config.logRetentionDays;
+  return config;
+}
+
+function resolveQueriesFile(currentFile = QUERIES_FILE, legacyFile = LEGACY_QUERYLOG_FILE) {
+  if (fs.existsSync(currentFile) || !fs.existsSync(legacyFile)) return currentFile;
+  try {
+    fs.renameSync(legacyFile, currentFile);
+    return currentFile;
+  } catch (error) {
+    console.error(`[queries] Failed to migrate ${legacyFile} to ${currentFile}: ${error.message}; using the legacy file`);
+    return legacyFile;
+  }
+}
+
 const UPSTREAM_RE = /^(\d+\.\d+\.\d+\.\d+)(:\d{1,5})?$/;
 
 function sanitize(config) {
+  migrateLegacyConfig(config);
   config.upstreams = (Array.isArray(config.upstreams) ? config.upstreams : [])
     .map(s => String(s).trim())
     .filter(s => UPSTREAM_RE.test(s) || /^[0-9a-fA-F:]+$/.test(s));
@@ -106,7 +127,7 @@ function sanitize(config) {
   config.forwardTimeoutMs = clampInt(config.forwardTimeoutMs, 500, 30000, DEFAULTS.forwardTimeoutMs);
   config.ttlMin = clampInt(config.ttlMin, 1, 3600, DEFAULTS.ttlMin);
   config.ttlMax = clampInt(config.ttlMax, config.ttlMin, 86400, DEFAULTS.ttlMax);
-  config.logRetentionDays = clampInt(config.logRetentionDays, 0, 30, DEFAULTS.logRetentionDays);
+  config.queryRetentionDays = clampInt(config.queryRetentionDays, 0, 30, DEFAULTS.queryRetentionDays);
   config.sessionTtlHours = clampInt(config.sessionTtlHours, 1, 720, DEFAULTS.sessionTtlHours);
   config.passwordHash = String(config.passwordHash || '');
   return config;
@@ -123,7 +144,7 @@ function loadConfig() {
   const config = { ...DEFAULTS };
   if (fs.existsSync(CONFIG_FILE)) {
     try {
-      Object.assign(config, JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')));
+      Object.assign(config, migrateLegacyConfig(JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))));
     } catch (e) {
       console.error(`[config] Failed to read ${CONFIG_FILE}, using defaults: ${e.message}`);
     }
@@ -162,7 +183,8 @@ module.exports = {
   DATA_DIR,
   RULES_FILE: path.join(DATA_DIR, 'rules.json'),
   SESSIONS_FILE: path.join(DATA_DIR, 'sessions.json'),
-  QUERYLOG_FILE: path.join(DATA_DIR, 'querylog.json'),
+  QUERIES_FILE,
+  resolveQueriesFile,
   loadConfig,
   saveConfig,
   sanitize,

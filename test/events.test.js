@@ -4,8 +4,8 @@ const { EventEmitter } = require('events');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { LogStore } = require('../src/store/logs');
-const { createSysLog } = require('../src/store/syslog');
+const { QueryStore } = require('../src/store/queries');
+const { createLogStore } = require('../src/store/logs');
 const { createEventStream } = require('../src/web/events');
 
 class FakeResponse extends EventEmitter {
@@ -47,11 +47,11 @@ function eventData(frame) {
 }
 
 function setup(options = {}) {
-  const logs = new LogStore(20);
-  const syslog = createSysLog(20);
+  const queries = new QueryStore(20);
+  const logs = createLogStore(20);
   const stream = createEventStream({
+    queries,
     logs,
-    syslog,
     cache: { info: () => ({ size: 0 }) },
     systemMonitor: { snapshot: () => ({ processCpu: 1 }) },
     getDnsStatus: () => ({ listening: true }),
@@ -60,17 +60,17 @@ function setup(options = {}) {
   const response = new FakeResponse();
   stream.handle({ authToken: 'valid' }, response);
   response.writes = [];
-  return { logs, syslog, stream, response };
+  return { queries, logs, stream, response };
 }
 
-test('batches query and system events outside the record path', () => {
-  const { logs, syslog, stream, response } = setup();
+test('batches Queries and Logs events outside the record path', () => {
+  const { queries, logs, stream, response } = setup();
 
-  const query = logs.record({
+  const query = queries.record({
     t: Date.now(), domain: 'example.com', client: '192.0.2.1',
     latencyMs: 12, rcode: 0, source: 'forward',
   });
-  syslog.record('test', 'changed');
+  logs.record('test', 'changed');
 
   assert.equal(eventFrames(response, 'queries').length, 0);
   stream.flushBatches();
@@ -79,17 +79,38 @@ test('batches query and system events outside the record path', () => {
     entries: [query],
     dropped: 0,
   });
-  assert.equal(eventData(eventFrames(response, 'syslog')[0]).events[0].msg, 'changed');
+  assert.equal(eventData(eventFrames(response, 'logs')[0]).operationLogs[0].msg, 'changed');
 
   stream.flushState(true);
   assert.equal(eventData(eventFrames(response, 'stats')[0]).stats.total, 1);
   stream.close();
 });
 
+test('broadcastSnapshot replaces queued events with the current reset state', () => {
+  const { queries, logs, stream, response } = setup();
+  queries.record({
+    t: Date.now(), domain: 'old.example', client: '192.0.2.1',
+    latencyMs: 12, rcode: 0, source: 'forward',
+  });
+  logs.record('test', 'before reset');
+
+  queries.reset();
+  stream.broadcastSnapshot();
+
+  const snapshot = eventData(eventFrames(response, 'snapshot')[0]);
+  assert.deepEqual(snapshot.queries, []);
+  assert.equal(snapshot.stats.total, 0);
+  assert.equal(snapshot.logs.operationLogs.at(-1).msg, 'before reset');
+  stream.flushBatches();
+  assert.equal(eventFrames(response, 'queries').length, 0);
+  assert.equal(eventFrames(response, 'logs').length, 0);
+  stream.close();
+});
+
 test('bounds pending events and sends a fresh snapshot after backpressure', () => {
-  const { logs, stream, response } = setup({ maxPending: 2 });
+  const { queries, stream, response } = setup({ maxPending: 2 });
   for (let index = 0; index < 3; index++) {
-    logs.record({
+    queries.record({
       t: Date.now(), domain: `${index}.example`, client: '192.0.2.1',
       latencyMs: 1, rcode: 0, source: 'cache',
     });
@@ -101,7 +122,7 @@ test('bounds pending events and sends a fresh snapshot after backpressure', () =
   assert.equal(batch.entries.length, 2);
   assert.equal(batch.dropped, 1);
 
-  logs.record({
+  queries.record({
     t: Date.now(), domain: 'latest.example', client: '192.0.2.1',
     latencyMs: 1, rcode: 0, source: 'cache',
   });

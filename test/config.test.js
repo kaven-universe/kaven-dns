@@ -7,7 +7,7 @@ const path = require('path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { sanitize, hashPassword, verifyPassword, atomicWriteJson } = require('../src/config');
+const { sanitize, hashPassword, verifyPassword, atomicWriteJson, resolveQueriesFile } = require('../src/config');
 
 function withTempDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kaven-dns-test-'));
@@ -56,7 +56,8 @@ test('sanitize falls back to defaults for invalid ports, addresses and upstreams
   // ttlMax below the (already-clamped) ttlMin fails the range check and
   // resets to the default rather than clamping up to ttlMin.
   assert.equal(config.ttlMax, 3600);
-  assert.equal(config.logRetentionDays, 7);
+  assert.equal(config.queryRetentionDays, 7);
+  assert.equal('logRetentionDays' in config, false);
   assert.equal(config.sessionTtlHours, 24);
   assert.equal(config.passwordHash, '12345');
 });
@@ -71,7 +72,7 @@ test('sanitize keeps valid values unchanged', () => {
     forwardTimeoutMs: 2000,
     ttlMin: 20,
     ttlMax: 300,
-    logRetentionDays: 0,
+    queryRetentionDays: 0,
     sessionTtlHours: 48,
     passwordHash: 'abc',
   });
@@ -84,13 +85,19 @@ test('sanitize keeps valid values unchanged', () => {
   assert.equal(config.forwardTimeoutMs, 2000);
   assert.equal(config.ttlMin, 20);
   assert.equal(config.ttlMax, 300);
-  assert.equal(config.logRetentionDays, 0);
+  assert.equal(config.queryRetentionDays, 0);
   assert.equal(config.sessionTtlHours, 48);
 });
 
 test('sanitize resets an empty upstream list to the built-in defaults', () => {
   const config = sanitize({ upstreams: ['example.com', ''] });
   assert.deepEqual(config.upstreams, ['223.5.5.5', '119.29.29.29', '114.114.114.114']);
+});
+
+test('sanitize migrates a valid legacy log retention setting', () => {
+  const config = sanitize({ logRetentionDays: 12 });
+  assert.equal(config.queryRetentionDays, 12);
+  assert.equal('logRetentionDays' in config, false);
 });
 
 test('sanitize accepts dotted-quad-shaped strings even with out-of-range octets', () => {
@@ -116,4 +123,16 @@ test('atomicWriteJson writes readable JSON and survives overwriting an existing 
     atomicWriteJson(file, { a: 2, b: [1, 2, 3] });
     assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { a: 2, b: [1, 2, 3] });
     assert.equal(fs.existsSync(`${file}.tmp`), false);
+  }));
+
+test('resolveQueriesFile migrates querylog.json without changing its contents', () =>
+  withTempDir(dir => {
+    const current = path.join(dir, 'queries.json');
+    const legacy = path.join(dir, 'querylog.json');
+    const snapshot = JSON.stringify({ entries: [{ domain: 'legacy.example' }], stats: {}, sequence: 1 });
+    fs.writeFileSync(legacy, snapshot);
+
+    assert.equal(resolveQueriesFile(current, legacy), current);
+    assert.equal(fs.existsSync(legacy), false);
+    assert.equal(fs.readFileSync(current, 'utf8'), snapshot);
   }));

@@ -82,12 +82,12 @@ function heldByOwnDnsListener(status, address, port) {
   return currentAddress === requestedAddress || isWildcard;
 }
 
-function createWebServer({ config, rulesStore, logs, cache, resolver, auth, syslog, getDnsStatus, restartDns, runtime }) {
+function createWebServer({ config, rulesStore, queries, cache, resolver, auth, logs, getDnsStatus, restartDns, runtime }) {
   const app = express();
   const systemMonitor = createSystemMonitor();
   const eventStream = createEventStream({
+    queries,
     logs,
-    syslog,
     cache,
     systemMonitor,
     getDnsStatus,
@@ -109,10 +109,10 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     const ip = req.socket.remoteAddress || 'unknown';
     const result = auth.login(String((req.body && req.body.password) || ''), ip, req.lang);
     if (!result.ok) {
-      if (syslog) syslog.record('auth', `login failed from ${ip}`, 'warn');
+      if (logs) logs.record('auth', `login failed from ${ip}`, 'warn');
       return res.status(401).json({ error: result.error });
     }
-    if (syslog) syslog.record('auth', `signed in from ${ip}`);
+    if (logs) logs.record('auth', `signed in from ${ip}`);
     res.json({ token: result.token });
   });
 
@@ -205,7 +205,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
 
     const response = { ok: true };
     if (restartDns) response.dns = await restartDns(config.dnsPort, config.bindAddress);
-    if (syslog) syslog.record('setup', `first-run setup completed: dns ${config.dnsPort}@${config.bindAddress}, web@${config.webBindAddress}`);
+    if (logs) logs.record('setup', `first-run setup completed: dns ${config.dnsPort}@${config.bindAddress}, web@${config.webBindAddress}`);
 
     // Rebind the console when the web bind address changed (after the response
     // has flushed, so the current connection is not cut mid-reply).
@@ -242,7 +242,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     const { errors, value } = validateRule(req.body || {}, req.lang);
     if (errors.length) return res.status(400).json({ error: errors.join('; ') });
     const rule = rulesStore.add(value);
-    if (syslog) syslog.record('rules', `added ${ruleLabel(rule)}`);
+    if (logs) logs.record('rules', `added ${ruleLabel(rule)}`);
     res.status(201).json({ rule });
   });
 
@@ -252,7 +252,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     const { errors, value } = validateRule({ ...old, ...req.body }, req.lang);
     if (errors.length) return res.status(400).json({ error: errors.join('; ') });
     const rule = rulesStore.update(req.params.id, value);
-    if (syslog) syslog.record('rules', `updated ${ruleLabel(rule)}`);
+    if (logs) logs.record('rules', `updated ${ruleLabel(rule)}`);
     res.json({ rule });
   });
 
@@ -261,7 +261,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     if (!rule) return res.status(404).json({ error: t(req.lang, 'rules.not_found') });
     if (!rulesStore.remove(req.params.id))
       return res.status(404).json({ error: t(req.lang, 'rules.not_found') });
-    if (syslog) syslog.record('rules', `removed ${ruleLabel(rule)}`);
+    if (logs) logs.record('rules', `removed ${ruleLabel(rule)}`);
     res.json({ ok: true });
   });
 
@@ -315,7 +315,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
       }
     }
 
-    if (syslog) syslog.record('rules', `imported: +${added} added, ${updated} updated, ${errors.length} skipped (${mode})`);
+    if (logs) logs.record('rules', `imported: +${added} added, ${updated} updated, ${errors.length} skipped (${mode})`);
 
     res.json({
       ok: true,
@@ -327,11 +327,11 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     });
   });
 
-  // Logs and stats
-  app.get('/api/logs', (req, res) => {
+  // Queries and stats
+  app.get('/api/queries', (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 200, 1000);
     res.json({
-      logs: logs.list({
+      queries: queries.list({
         limit,
         domain: String(req.query.domain || ''),
         source: String(req.query.source || ''),
@@ -347,25 +347,32 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
 
   app.get('/api/stats', (req, res) => {
     res.json({
-      stats: logs.getStats(),
-      analytics: logs.getAnalytics(),
+      stats: queries.getStats(),
+      analytics: queries.getAnalytics(),
       cache: cache.info(),
       system: systemMonitor.snapshot(),
       dns: getDnsStatus ? getDnsStatus() : null,
     });
   });
 
-  // System log: console output + audit events (operation/config changes)
-  app.get('/api/syslog', (req, res) => {
+  app.post('/api/queries/reset', (req, res) => {
+    const cleared = queries.reset();
+    eventStream.broadcastSnapshot();
+    if (logs) logs.record('queries', `reset queries: ${cleared} entries cleared`);
+    res.json({ ok: true, cleared });
+  });
+
+  // Logs: console output + operation records
+  app.get('/api/logs', (req, res) => {
     let limit = Number(req.query.limit);
     if (!Number.isInteger(limit) || limit < 1 || limit > 2000) limit = 400;
-    res.json(syslog ? syslog.snapshot(limit) : { console: [], events: [] });
+    res.json(logs ? logs.snapshot(limit) : { consoleLogs: [], operationLogs: [] });
   });
 
   // Stop the whole process (used by the console's Quit button).
   // The response is flushed before exit; requires an authenticated session.
   app.post('/api/shutdown', auth.middleware, (req, res) => {
-    if (syslog) syslog.record('shutdown', 'stopping via the console Quit button');
+    if (logs) logs.record('shutdown', 'stopping via the console Quit button');
     res.json({ ok: true });
     res.once('finish', () => {
       console.log('[web] shutdown requested via API; exiting.');
@@ -376,7 +383,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
   // Cache management
   app.post('/api/cache/flush', (req, res) => {
     const flushed = cache.flush();
-    if (syslog) syslog.record('cache', `flushed ${flushed} cached entries`);
+    if (logs) logs.record('cache', `flushed ${flushed} cached entries`);
     res.json({ ok: true, flushed });
   });
 
@@ -404,7 +411,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     }
 
     const nums = {};
-    for (const key of ['forwardTimeoutMs', 'ttlMin', 'ttlMax', 'logRetentionDays']) {
+    for (const key of ['forwardTimeoutMs', 'ttlMin', 'ttlMax', 'queryRetentionDays']) {
       if (body[key] !== undefined) {
         const n = Number(body[key]);
         if (!Number.isFinite(n)) errors.push(tr('config.must_be_number', { key }));
@@ -477,9 +484,9 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     if (nums.forwardTimeoutMs !== undefined) config.forwardTimeoutMs = nums.forwardTimeoutMs;
     if (nums.ttlMin !== undefined) config.ttlMin = nums.ttlMin;
     if (nums.ttlMax !== undefined) config.ttlMax = nums.ttlMax;
-    if (nums.logRetentionDays !== undefined) {
-      config.logRetentionDays = nums.logRetentionDays;
-      logs.setRetentionDays(nums.logRetentionDays);
+    if (nums.queryRetentionDays !== undefined) {
+      config.queryRetentionDays = nums.queryRetentionDays;
+      queries.setRetentionDays(nums.queryRetentionDays);
     }
     if (nums.sessionTtlHours !== undefined) config.sessionTtlHours = nums.sessionTtlHours;
     if (nums.dnsPort !== undefined) config.dnsPort = nums.dnsPort;
@@ -494,7 +501,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     // sanitize() clamps out-of-range numbers to valid bounds; tell the client
     // which requested values were silently adjusted so the UI can flag them.
     const adjusted = {};
-    for (const key of ['forwardTimeoutMs', 'ttlMin', 'ttlMax', 'logRetentionDays']) {
+    for (const key of ['forwardTimeoutMs', 'ttlMin', 'ttlMax', 'queryRetentionDays']) {
       if (nums[key] !== undefined && nums[key] !== config[key]) adjusted[key] = config[key];
     }
 
@@ -507,18 +514,18 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     if (webPortChanged || webBindChanged)
       response.newWebUrl = consoleBaseUrl(config.webPort, config.webBindAddress);
 
-    if (syslog) {
+    if (logs) {
       const changed = [];
       if (dnsPortChanged) changed.push(`dnsPort=${config.dnsPort}`);
       if (bindChanged) changed.push(`bind=${config.bindAddress}`);
       if (webPortChanged) changed.push(`webPort=${nums.webPort}`);
       if (webBindChanged) changed.push(`webBind=${config.webBindAddress}`);
       if (passwordChanged) changed.push('password');
-      for (const key of ['forwardTimeoutMs', 'ttlMin', 'ttlMax', 'logRetentionDays', 'sessionTtlHours']) {
+      for (const key of ['forwardTimeoutMs', 'ttlMin', 'ttlMax', 'queryRetentionDays', 'sessionTtlHours']) {
         if (nums[key] !== undefined && old[key] !== config[key]) changed.push(`${key}=${config[key]}`);
       }
       if (old.upstreams !== config.upstreams && body._upstreams) changed.push(`upstreams(${config.upstreams.length})`);
-      syslog.record('config', `updated: ${changed.join(', ') || 'no changes'}`);
+      logs.record('config', `updated: ${changed.join(', ') || 'no changes'}`);
     }
 
     res.json(response);
@@ -552,7 +559,7 @@ function createWebServer({ config, rulesStore, logs, cache, resolver, auth, sysl
     }
     const latencyMs = Date.now() - started;
 
-    logs.record({
+    queries.record({
       t: started,
       client: 'web-ui',
       domain,
