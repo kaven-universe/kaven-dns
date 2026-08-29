@@ -4,7 +4,7 @@ This file applies to the entire repository. Keep changes small and consistent wi
 
 ## Project Model
 
-- The application targets Node.js 16.17 or newer and uses CommonJS (`require` / `module.exports`) with no transpilation or application build step.
+- The application targets Node.js 22 or newer and uses CommonJS (`require` / `module.exports`) with no transpilation or application build step.
 - Runtime dependencies are intentionally small: Express provides the Web API and `dns2` provides DNS packets and transports. Prefer Node.js built-ins and existing helpers before adding a dependency.
 - `src/web/public/index.html` is the whole Vue 3 client: HTML, CSS, translations, and application logic live together. Vue is vendored locally under `src/web/public/vendor/` so the console works offline.
 - Runtime state is JSON under `data/`, or under `KAVEN_DATA_DIR` when set. `data/`, `node_modules/`, and logs are not source files and must not be edited or committed.

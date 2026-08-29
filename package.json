@@ -9,10 +9,10 @@
     "test": "node --test"
   },
   "engines": {
-    "node": ">=16.17"
+    "node": ">=22"
   },
   "dependencies": {
-    "dns2": "^2.0.1",
-    "express": "^4.21.2"
+    "dns2": "^3.1.1",
+    "express": "^5.2.1"
   }
 }

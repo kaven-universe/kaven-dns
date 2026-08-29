@@ -27,6 +27,8 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 
 ## Quick Start
 
+Requires Node.js 22 or newer.
+
 ```bash
 pnpm install
 pnpm start
