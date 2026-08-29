@@ -332,6 +332,16 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 }
 .toast.success { background: var(--green); }
 .toast.error { background: var(--red); }
+.server-unavailable {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 998;
+  display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100vw - 32px);
+  padding: 10px 14px; border: 1px solid rgba(220,38,38,.35); border-radius: 8px;
+  background: #fff; color: #991b1b; font-size: 13px; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(15,23,42,.18);
+}
+.server-unavailable::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none;
+}
 .exited-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 999; }
 @media (max-width: 1200px) {
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -373,6 +383,10 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 </head>
 <body>
 <div id="app" :lang="locale">
+
+  <div v-if="serverUnavailable && !exited" class="server-unavailable" role="alert" aria-live="assertive">
+    {{ t('app.serverUnavailable') }}
+  </div>
 
   <!-- First-run setup (no admin password yet) -->
   <div v-if="needsSetup" class="login-wrap">
@@ -1245,6 +1259,7 @@ const I18N = {
     'nav.quit': 'Quit',
     'app.exitedTitle': 'Kaven DNS has exited',
     'app.exitedSub': 'The DNS service is stopped; you can close this window now.',
+    'app.serverUnavailable': 'Cannot connect to Kaven DNS. Check that the server is running and try again.',
     'toast.quitConfirm': 'Quit Kaven DNS? The DNS service will stop.',
     'stats.total': 'Total Queries',
     'stats.fixed': 'Rule Hits',
@@ -1510,6 +1525,7 @@ const I18N = {
     'nav.quit': '退出',
     'app.exitedTitle': 'Kaven DNS 已退出',
     'app.exitedSub': 'DNS 服务已停止，现在可以关闭此窗口。',
+    'app.serverUnavailable': '无法连接到 Kaven DNS，请确认服务器正在运行后重试。',
     'toast.quitConfirm': '退出 Kaven DNS？DNS 服务将停止。',
     'stats.total': '总查询数',
     'stats.fixed': '规则命中',
@@ -1761,6 +1777,7 @@ const app = createApp({
       },
       trendMetric: 'total',
       exited: false,
+      serverUnavailable: false,
       logs: [], filteredLogs: [],
       syslog: { console: [], events: [] },
       logFilter: { domain: '', source: '', status: '', type: '', client: '', rule: '', rangePreset: '', customFrom: '', customTo: '' },
@@ -2051,6 +2068,19 @@ const app = createApp({
       document.documentElement.lang = this.locale === 'zh' ? 'zh-CN' : 'en';
       document.title = this.t('title');
     },
+    async fetchServer(path, options) {
+      try {
+        const response = await fetch(path, options);
+        this.serverUnavailable = false;
+        return response;
+      } catch (error) {
+        if (error.name === 'AbortError') throw error;
+        this.serverUnavailable = true;
+        const unavailableError = new Error(this.t('app.serverUnavailable'));
+        unavailableError.serverUnavailable = true;
+        throw unavailableError;
+      }
+    },
     async api(path, options = {}) {
       const headers = Object.assign({}, options.headers || {}, {
         'Accept-Language': this.locale,
@@ -2061,7 +2091,7 @@ const app = createApp({
         opts.body = JSON.stringify(opts.body);
         headers['Content-Type'] = 'application/json';
       }
-      const res = await fetch(path, opts);
+      const res = await this.fetchServer(path, opts);
       let data = {};
       try { data = await res.json(); } catch (_) { /* empty response */ }
       if (res.status === 401 && path !== '/api/auth/login') {
@@ -2075,7 +2105,7 @@ const app = createApp({
       this.loginLoading = true;
       this.loginError = '';
       try {
-        const res = await fetch('/api/auth/login', {
+        const res = await this.fetchServer('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept-Language': this.locale },
           body: JSON.stringify({ password: this.loginPassword }),
@@ -2245,7 +2275,7 @@ const app = createApp({
       this._liveLastFrameAt = Date.now();
       this._liveHealthySince = 0;
       try {
-        const response = await fetch('/api/events', {
+        const response = await this.fetchServer('/api/events', {
           headers: {
             Authorization: 'Bearer ' + this.token,
             'Accept-Language': this.locale,
@@ -2261,7 +2291,11 @@ const app = createApp({
           throw new Error(this.t('api.requestFailed', { status: response.status }));
         await this.consumeLiveStream(response.body, controller);
       } catch (error) {
-        if (error.name !== 'AbortError') console.warn('[live] stream disconnected:', error.message);
+        if (error.name !== 'AbortError') {
+          if (error.serverUnavailable || error instanceof TypeError)
+            this.serverUnavailable = true;
+          console.warn('[live] stream disconnected:', error.message);
+        }
       } finally {
         if (this._liveAbortController !== controller) return;
         this._liveAbortController = null;
