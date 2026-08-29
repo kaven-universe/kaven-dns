@@ -46,6 +46,8 @@ const MESSAGES = {
     'resolve.domain_required': 'Domain is required',
     'resolve.unsupported_type': 'Unsupported type {type}',
 
+    'updates.check_failed': 'Could not check for updates; try again later',
+
     'api.not_found': 'API not found',
     'api.invalid_json': 'Request body is not valid JSON',
     'api.internal_error': 'Internal server error',
@@ -87,6 +89,8 @@ const MESSAGES = {
 
     'resolve.domain_required': '域名不能为空',
     'resolve.unsupported_type': '不支持的类型 {type}',
+
+    'updates.check_failed': '无法检查更新，请稍后重试',
 
     'api.not_found': '接口不存在',
     'api.invalid_json': '请求体不是合法 JSON',

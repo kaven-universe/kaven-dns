@@ -333,7 +333,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 .settings-password-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
 .settings-span-all { grid-column: 1 / -1; }
 .settings-maintenance-grid {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 0 -20px -18px; border-top: 1px solid var(--border);
 }
 .settings-maintenance-item {
@@ -344,6 +344,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 .settings-maintenance-item h4 { margin: 0 0 2px; font-size: 13px; }
 .settings-maintenance-item p { margin: 0; color: var(--muted); font-size: 12px; }
 .settings-maintenance-item .btn { white-space: nowrap; }
+.settings-maintenance-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .upstream-row { display: flex; gap: 8px; margin-bottom: 8px; }
 .upstream-row input { flex: 1; }
 .empty { color: var(--muted); text-align: center; padding: 24px 0; }
@@ -414,6 +415,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   .settings-maintenance-item { grid-template-columns: 1fr; gap: 10px; }
   .settings-maintenance-item + .settings-maintenance-item { border-left: 0; border-top: 1px solid var(--border); }
   .settings-maintenance-item .btn { justify-self: start; }
+  .settings-maintenance-actions { justify-content: flex-start; }
 }
 </style>
 </head>
@@ -1123,6 +1125,20 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                   {{ resettingQueries ? t('settings.resettingQueries') : t('settings.resetQueries') }}
                 </button>
               </div>
+              <div class="settings-maintenance-item">
+                <div>
+                  <h4>{{ t('settings.updates') }}</h4>
+                  <p v-if="updateResult && updateResult.updateAvailable">{{ t('settings.updateAvailable', {latest: updateResult.latestVersion, current: updateResult.currentVersion}) }}</p>
+                  <p v-else-if="updateResult">{{ t('settings.upToDate', {current: updateResult.currentVersion}) }}</p>
+                  <p v-else>{{ t('settings.updateIdle') }}</p>
+                </div>
+                <div class="settings-maintenance-actions">
+                  <a v-if="updateResult && updateResult.updateAvailable" class="btn secondary" :href="updateResult.url" target="_blank" rel="noopener noreferrer">{{ t('settings.viewUpdate') }}</a>
+                  <button class="btn secondary" :disabled="checkingUpdates" @click="checkForUpdates">
+                    {{ checkingUpdates ? t('settings.checkingUpdates') : t('settings.checkUpdates') }}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1527,6 +1543,13 @@ const I18N = {
     'settings.queriesInfo': '{n} retained queries. Resetting clears all queries and aggregate query counts; cache data is not affected.',
     'settings.resetQueries': 'Reset Queries',
     'settings.resettingQueries': 'Resetting...',
+    'settings.updates': 'Updates',
+    'settings.updateIdle': 'Check for the latest stable version.',
+    'settings.updateAvailable': 'Version {latest} is available (current: {current}).',
+    'settings.upToDate': 'Version {current} is up to date.',
+    'settings.checkUpdates': 'Check for Updates',
+    'settings.checkingUpdates': 'Checking...',
+    'settings.viewUpdate': 'View Update',
     'settings.changePassword': 'Change Password',
     'settings.security': 'Security',
     'settings.sessionTtl': 'Session validity (hours, 1-720)',
@@ -1805,6 +1828,13 @@ const I18N = {
     'settings.queriesInfo': '当前保留 {n} 条查询。重置会清空全部查询及聚合查询计数，不影响缓存数据。',
     'settings.resetQueries': '重置查询',
     'settings.resettingQueries': '重置中...',
+    'settings.updates': '更新',
+    'settings.updateIdle': '检查最新稳定版本。',
+    'settings.updateAvailable': '发现新版本 {latest}（当前版本：{current}）。',
+    'settings.upToDate': '当前版本 {current} 已是最新。',
+    'settings.checkUpdates': '检查更新',
+    'settings.checkingUpdates': '正在检查...',
+    'settings.viewUpdate': '查看更新',
     'settings.changePassword': '修改密码',
     'settings.security': '安全',
     'settings.sessionTtl': '会话有效期（小时，1-720）',
@@ -1880,6 +1910,7 @@ const app = createApp({
         bindAddress: '0.0.0.0', webBindAddress: '0.0.0.0', sessionTtlHours: 24,
       },
       savingSettings: false, savingPw: false, resettingQueries: false,
+      checkingUpdates: false, updateResult: null,
       // Per-field feedback after a save: clamped values (orange) and a DNS
       // address/port that failed to re-listen (red)
       fieldAdjusted: {},
@@ -2856,6 +2887,17 @@ const app = createApp({
           this.resettingQueries = false;
         }
       }, true);
+    },
+    async checkForUpdates() {
+      this.checkingUpdates = true;
+      try {
+        this.updateResult = await this.api('/api/update');
+      } catch (e) {
+        this.updateResult = null;
+        this.showToast(e.message, 'error');
+      } finally {
+        this.checkingUpdates = false;
+      }
     },
     async runTest() {
       if (!this.testForm.domain.trim()) return;

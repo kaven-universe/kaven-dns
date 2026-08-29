@@ -8,6 +8,7 @@ All notable changes to this project are documented in this file.
 
 - Settings now includes a confirmed Query History reset that clears retained queries and aggregate query counters, persists the reset immediately, and synchronizes all connected consoles
 - DNS queries relayed by a loopback forwarder can now retain their original IPv4 or IPv6 client identity through EDNS Client Subnet (ECS); malformed ECS and values supplied by non-loopback peers are ignored
+- Settings now includes a manual update check that compares the running package version with stable GitHub tags and links to a newer tag when available; it does not install updates automatically
 
 ### Changed
 
@@ -19,6 +20,7 @@ All notable changes to this project are documented in this file.
 
 - Added reset persistence/rollback, authentication, SSE synchronization, and legacy config/history migration coverage
 - Added ECS coverage for UDP decoding, IPv4/IPv6 client attribution, shortened prefixes, malformed options, and the loopback trust boundary
+- Added semantic-version ordering, stable-tag selection, GitHub failure, update-route authentication, and localized error coverage
 
 ## [1.2.1] - 2026-08-27
 

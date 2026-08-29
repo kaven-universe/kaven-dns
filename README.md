@@ -21,7 +21,7 @@ A DNS server built on Node.js with a Web console for monitoring and management.
   - Domains tab / Clients tab: the complete top-domains and active-clients rankings as sortable, searchable tables with the same column-header filter popover on Failures (all / has failures / no failures), each on its own page (not capped to the Dashboard's top-6 preview)
   - Authenticated SSE streams batched live updates to visible consoles, with automatic reconnect, periodic REST fallback, and a persistent bilingual warning while the server is unreachable; analytics use the retained query window, which survives a normal restart (saved on clean shutdown, restored on the next start) and is only lost on a crash
   - Rules management: table + modal editor, enable toggle, remarks, import/export as JSON (merge by domains+type, or replace all)
-  - Settings: upstream list, cache and query-retention parameters, ports, password change, cache flush, query-history reset, resolve test
+  - Settings: upstream list, cache and query-retention parameters, ports, password change, cache flush, query-history reset, stable-version update check, resolve test
   - Logs tab: operation/config-change records plus console output (what a hidden terminal would have shown), with a dark console viewer
   - API error messages are localized too, negotiated from the `Accept-Language` header
 - **No database**: rules, config and query history persist to `data/*.json` (atomic writes, restored on the next start after a normal exit/restart)
@@ -181,6 +181,7 @@ Error messages are localized when an `Accept-Language: zh` (or `en`) header is s
 | GET | `/api/events` | Authenticated SSE stream for batched Queries, stats and Logs updates |
 | POST | `/api/shutdown` | Stop the program |
 | POST | `/api/cache/flush` | Flush the cache |
+| GET | `/api/update` | Compare the running version with the latest stable GitHub tag |
 | GET/PUT | `/api/config` | Read / update config (incl. password change) |
 | POST | `/api/resolve` | Resolve test `{domain, type}` |
 
@@ -192,6 +193,7 @@ src/
 ├── config.js         # Config load/persist (first-run setup wizard data)
 ├── i18n.js           # zh/en message dictionaries for user-facing API errors
 ├── system.js         # Server info + CPU/memory sampling for dashboard cards
+├── update.js         # Stable GitHub tag lookup and version comparison
 ├── dns/
 │   ├── server.js     # UDP + TCP DNS server (dns2)
 │   ├── resolver.js   # Resolution pipeline: rule → fixed / cache / forward

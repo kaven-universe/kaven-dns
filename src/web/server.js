@@ -12,6 +12,7 @@ const { normalizeDomain } = require('../dns/matching');
 const { typeName, summarizeAnswers } = require('../dns/util');
 const { t, normalizeLang } = require('../i18n');
 const { createSystemMonitor } = require('../system');
+const { checkForUpdates } = require('../update');
 const { createEventStream } = require('./events');
 
 const UPSTREAM_RE = /^\d+\.\d+\.\d+\.\d+(:\d{1,5})?$/;
@@ -82,7 +83,7 @@ function heldByOwnDnsListener(status, address, port) {
   return currentAddress === requestedAddress || isWildcard;
 }
 
-function createWebServer({ config, rulesStore, queries, cache, resolver, auth, logs, getDnsStatus, restartDns, runtime }) {
+function createWebServer({ config, rulesStore, queries, cache, resolver, auth, logs, getDnsStatus, restartDns, runtime, updateChecker = checkForUpdates }) {
   const app = express();
   const systemMonitor = createSystemMonitor();
   const eventStream = createEventStream({
@@ -385,6 +386,15 @@ function createWebServer({ config, rulesStore, queries, cache, resolver, auth, l
     const flushed = cache.flush();
     if (logs) logs.record('cache', `flushed ${flushed} cached entries`);
     res.json({ ok: true, flushed });
+  });
+
+  app.get('/api/update', async (req, res) => {
+    try {
+      res.json(await updateChecker());
+    } catch (error) {
+      if (logs) logs.record('updates', `check failed: ${error.message}`, 'warn');
+      res.status(502).json({ error: t(req.lang, 'updates.check_failed') });
+    }
   });
 
   // Config read/write (never returns the password hash)
