@@ -21,6 +21,7 @@ body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
 }
+#app { min-height: 100vh; display: flex; flex-direction: column; }
 button { font: inherit; cursor: pointer; border: none; border-radius: 6px; }
 input, select, textarea {
   font: inherit; padding: 7px 10px; border: 1px solid var(--border);
@@ -48,7 +49,7 @@ textarea { width: 100%; resize: vertical; font-family: inherit; }
 .lang-switch button.on { background: var(--primary); color: #fff; }
 
 /* Login */
-.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-wrap { flex: 1; min-height: 0; padding: 32px 16px; display: flex; align-items: center; justify-content: center; }
 .login-card {
   width: 360px; background: var(--card); border-radius: 12px; padding: 36px 32px;
   box-shadow: 0 8px 30px rgba(0,0,0,.08); text-align: center;
@@ -103,6 +104,7 @@ textarea { width: 100%; resize: vertical; font-family: inherit; }
 .setup-fade-leave-to { opacity: 0; transform: translateY(-8px); }
 
 /* Layout */
+.app-shell { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 header {
   background: #fff; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; padding: 0 24px; height: 54px;
@@ -116,7 +118,19 @@ nav a {
 }
 nav a.active { background: rgba(37,99,235,.1); color: var(--primary); font-weight: 600; }
 /* Fluid layout: fill the window width, only comfortable side padding */
-main { margin: 20px 0 40px; padding: 0 clamp(16px, 2.5vw, 48px) 40px; }
+main { margin: 20px 0 0; padding: 0 clamp(16px, 2.5vw, 48px) 40px; }
+.app-shell main { flex: 1; width: 100%; }
+
+.site-footer {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  min-height: 52px; padding: 11px clamp(16px, 2.5vw, 48px);
+  border-top: 1px solid var(--border); background: rgba(255,255,255,.72);
+  color: var(--muted); font-size: 12px;
+}
+.site-footer-meta, .site-footer-links { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.site-footer-brand { color: var(--text); font-weight: 700; }
+.site-footer a { color: var(--muted); text-decoration: none; }
+.site-footer a:hover { color: var(--primary); }
 
 .card { background: var(--card); border-radius: 10px; border: 1px solid var(--border); padding: 18px 20px; margin-bottom: 16px; }
 .card h3 { margin: 0 0 14px; font-size: 15px; }
@@ -416,6 +430,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   .settings-maintenance-item + .settings-maintenance-item { border-left: 0; border-top: 1px solid var(--border); }
   .settings-maintenance-item .btn { justify-self: start; }
   .settings-maintenance-actions { justify-content: flex-start; }
+  .site-footer { align-items: flex-start; flex-direction: column; gap: 4px; }
 }
 </style>
 </head>
@@ -529,7 +544,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   </div>
 
   <!-- Main -->
-  <div v-else>
+  <div v-else class="app-shell">
     <header>
       <div class="brand"><span class="dot"></span>Kaven DNS</div>
       <nav>
@@ -1146,6 +1161,20 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
     </main>
   </div>
 
+  <footer v-if="!exited" class="site-footer">
+    <div class="site-footer-meta">
+      <span class="site-footer-brand">Kaven DNS</span>
+      <span aria-hidden="true">·</span>
+      <span>{{ t('footer.console') }}</span>
+      <span aria-hidden="true">·</span>
+      <span>&copy; {{ currentYear }} Kaven Universe</span>
+    </div>
+    <div class="site-footer-links">
+      <a href="https://github.com/kaven-universe/kaven-dns" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href="https://hub.docker.com/r/kavenzero/kaven-dns" target="_blank" rel="noopener noreferrer">Docker Hub</a>
+    </div>
+  </footer>
+
   <!-- Rule editor modal -->
   <div v-if="ruleModal.visible" class="modal-mask" @click.self="ruleModal.visible = false">
     <div class="modal">
@@ -1293,6 +1322,7 @@ function sortRows(items, sort, table) {
 const I18N = {
   en: {
     'title': 'Kaven DNS Console',
+    'footer.console': 'DNS management console',
     'login.subtitle': 'DNS Server Management Console',
     'login.passwordPlaceholder': 'Enter admin password',
     'login.signIn': 'Sign In',
@@ -1578,6 +1608,7 @@ const I18N = {
   },
   zh: {
     'title': 'Kaven DNS 控制台',
+    'footer.console': 'DNS 管理控制台',
     'login.subtitle': 'DNS 服务器管理控制台',
     'login.passwordPlaceholder': '请输入管理密码',
     'login.signIn': '登 录',
@@ -1871,6 +1902,7 @@ const app = createApp({
       : (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
     return {
       locale,
+      currentYear: new Date().getFullYear(),
       authed: false,
       needsSetup: false,
       setupForm: { password: '', passwordConfirm: '', dnsPort: 53, bindAddress: '0.0.0.0', webBindAddress: '0.0.0.0' },

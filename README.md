@@ -23,6 +23,7 @@ A DNS server built on Node.js with a Web console for monitoring and management.
   - Rules management: table + modal editor, enable toggle, remarks, import/export as JSON (merge by domains+type, or replace all)
   - Settings: upstream list, cache and query-retention parameters, ports, password change, cache flush, query-history reset, stable-version update check, resolve test
   - Logs tab: operation/config-change records plus console output (what a hidden terminal would have shown), with a dark console viewer
+  - Shared bilingual footer across setup, login and the console, with links to the GitHub source and Docker Hub image
   - API error messages are localized too, negotiated from the `Accept-Language` header
 - **No database**: rules, config and query history persist to `data/*.json` (atomic writes, restored on the next start after a normal exit/restart)
 
