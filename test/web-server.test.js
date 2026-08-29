@@ -47,7 +47,7 @@ test('does not claim endpoints held by another listener', () => {
   assert.equal(heldByOwnDnsListener({ listening: true, address: '0.0.0.0', port: 5353 }, '0.0.0.0', 53), false);
 });
 
-test('protects the update check and localizes upstream failures', async () => {
+test('exposes the version, protects update checks and localizes upstream failures', async () => {
   const auth = createAuth({
     verifyPassword: password => password === 'correct',
     getSessionTtlMs: () => 60 * 1000,
@@ -79,6 +79,10 @@ test('protects the update check and localizes upstream failures', async () => {
   const port = server.address().port;
 
   try {
+    const status = await request(port, '/api/setup/status');
+    assert.equal(status.status, 200);
+    assert.equal(JSON.parse(status.body).version, require('../package.json').version);
+
     const denied = await request(port, '/api/update');
     assert.equal(denied.status, 401);
 

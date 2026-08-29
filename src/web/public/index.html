@@ -1164,6 +1164,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   <footer v-if="!exited" class="site-footer">
     <div class="site-footer-meta">
       <span class="site-footer-brand">Kaven DNS</span>
+      <span v-if="appVersion">v{{ appVersion }}</span>
       <span aria-hidden="true">·</span>
       <span>{{ t('footer.console') }}</span>
       <span aria-hidden="true">·</span>
@@ -1903,6 +1904,7 @@ const app = createApp({
     return {
       locale,
       currentYear: new Date().getFullYear(),
+      appVersion: '',
       authed: false,
       needsSetup: false,
       setupForm: { password: '', passwordConfirm: '', dnsPort: 53, bindAddress: '0.0.0.0', webBindAddress: '0.0.0.0' },
@@ -2156,6 +2158,7 @@ const app = createApp({
     // setup wizard instead of the login form.
     try {
       const st = await this.api('/api/setup/status');
+      this.appVersion = String(st.version || '');
       this.needsSetup = Boolean(st.needsSetup);
       if (this.needsSetup) {
         this.localIPs = st.localIPs || [];

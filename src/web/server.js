@@ -6,6 +6,7 @@ const os = require('os');
 const crypto = require('crypto');
 const express = require('express');
 const { Packet } = require('dns2');
+const { version: APP_VERSION } = require('../../package.json');
 const { saveConfig, sanitize, hashPassword, verifyPassword } = require('../config');
 const { validateRule } = require('../store/rules');
 const { normalizeDomain } = require('../dns/matching');
@@ -129,7 +130,7 @@ function createWebServer({ config, rulesStore, queries, cache, resolver, auth, l
 
   // ---- First-run setup (public; active only until an admin password is set) ----
   app.get('/api/setup/status', (req, res) => {
-    res.json({ needsSetup: !config.passwordHash, localIPs: getLocalIPv4s() });
+    res.json({ needsSetup: !config.passwordHash, version: APP_VERSION, localIPs: getLocalIPv4s() });
   });
 
   // Availability check for the DNS address:port the user is about to enter.
