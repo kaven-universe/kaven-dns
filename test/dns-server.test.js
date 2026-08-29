@@ -5,7 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Packet, UDPClient, TCPClient } = require('dns2');
 
-const { createDnsServers } = require('../src/dns/server');
+const { createDnsServers, resolveClientIp } = require('../src/dns/server');
 const { QueryStore } = require('../src/store/queries');
 
 // dns2 needs the SAME port for its UDP and TCP stacks, unlike letting each
@@ -25,6 +25,34 @@ function getFreePort() {
 function fakeResolver(handler) {
   return { resolve: handler };
 }
+
+function ecsRequest(ip, family, sourcePrefixLength, scopePrefixLength = 0) {
+  return {
+    additionals: [{
+      type: Packet.TYPE.EDNS,
+      rdata: [{
+        ednsCode: Packet.EDNS_OPTION_CODE.ECS,
+        ip,
+        family,
+        sourcePrefixLength,
+        scopePrefixLength,
+      }],
+    }],
+  };
+}
+
+test('accepts valid ECS only from loopback DNS forwarders', () => {
+  const ipv4Request = ecsRequest('192.0.2.45', 1, 32);
+  assert.equal(resolveClientIp(ipv4Request, { address: '127.0.0.1' }), '192.0.2.45');
+  assert.equal(resolveClientIp(ipv4Request, { address: '198.51.100.7' }), '198.51.100.7');
+
+  const ipv6Request = ecsRequest('2001:db8:1234:5600::', 2, 56);
+  assert.equal(resolveClientIp(ipv6Request, { remoteAddress: '::1' }), '2001:db8:1234:5600::/56');
+
+  assert.equal(resolveClientIp(ecsRequest('192.0.2.45', 1, 33), { address: '127.0.0.1' }), '127.0.0.1');
+  assert.equal(resolveClientIp(ecsRequest('192.0.2.45', 1, 32, 1), { address: '127.0.0.1' }), '127.0.0.1');
+  assert.equal(resolveClientIp(ecsRequest('2001:db8::1', 1, 32), { address: '127.0.0.1' }), '127.0.0.1');
+});
 
 test('answers UDP and TCP queries and records each query', async () => {
   const port = await getFreePort();
@@ -63,6 +91,33 @@ test('answers UDP and TCP queries and records each query', async () => {
     }
 
     assert.deepEqual(dns.status(), { port, address: '127.0.0.1', listening: true, error: '' });
+  } finally {
+    dns.close();
+  }
+});
+
+test('records the ECS address supplied by a local DNS forwarder', async () => {
+  const port = await getFreePort();
+  const queries = new QueryStore(20);
+  const resolver = fakeResolver(async domain => ({
+    rcode: Packet.RCODE.NOERROR,
+    answers: [{ name: domain, type: Packet.TYPE.A, class: Packet.CLASS.IN, ttl: 30, address: '203.0.113.9' }],
+    authorities: [],
+    additionals: [],
+    source: 'fixed',
+  }));
+  const dns = createDnsServers({ resolver, queries, port, address: '127.0.0.1' });
+  await dns.start();
+  try {
+    await UDPClient({ dns: '127.0.0.1', port, timeout: 2000 })(
+      'ecs.test',
+      'A',
+      Packet.CLASS.IN,
+      { clientIp: '192.0.2.45/32' },
+    );
+
+    const [entry] = queries.list({ limit: 1 });
+    assert.equal(entry.client, '192.0.2.45');
   } finally {
     dns.close();
   }

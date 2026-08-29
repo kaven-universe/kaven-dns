@@ -7,6 +7,7 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 ## Features
 
 - **Standard DNS service**: listens on both UDP and TCP; supports A / AAAA / CNAME and passes common record types through
+- **EDNS Client Subnet awareness**: valid ECS data from a local loopback DNS forwarder is used to preserve the original client in Queries and client analytics; remote clients cannot override their logged address
 - **Dynamic resolution rules** (add / edit / delete take effect immediately, no restart):
   - `Fixed answer`: return a specified IP (or several) or a CNAME target directly
   - `Forward`: forward the query to a third-party DNS (a per-rule upstream can be set, e.g. `8.8.8.8`); queries that match no rule go to the default upstream group
@@ -59,6 +60,14 @@ Point a device's DNS at this machine's LAN IP (not `127.0.0.1`, which only resol
 - **Router** (recommended — applies to every device on the network): in the router's LAN/DHCP settings, set the DNS server to this machine's LAN IP. Give that machine a static/reserved IP first so devices don't lose DNS when its lease changes.
 - **Android**: Wi-Fi settings → long-press the connected network → Modify network → Advanced options → IP settings: Static → set DNS 1 to the server's LAN IP.
 - **iOS**: Settings → Wi-Fi → ⓘ next to the connected network → Configure DNS → Manual → add the server's LAN IP.
+
+If a local `dnsmasq` instance relays requests to Kaven DNS over loopback, enable full-length ECS in `dnsmasq` so the Queries and Clients views show the originating LAN device instead of `127.0.0.1`:
+
+```ini
+add-subnet=32,128
+```
+
+Restart `dnsmasq` after changing its configuration. Kaven DNS accepts ECS for client attribution only from loopback peers; shorter valid prefixes are displayed in CIDR form, and malformed or remotely supplied values are ignored.
 
 ## Verification
 
