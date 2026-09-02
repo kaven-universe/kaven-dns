@@ -201,7 +201,8 @@ fails, restore the saved `noresolv` and `server` values, then commit and
 restart dnsmasq.
 
 The launcher and its `@reboot` cron entry start Kaven DNS after a router reboot;
-the binary, launcher, and data all survive on `/data`.
+it also recreates the firmware-specific dnsmasq ECS include before restarting
+dnsmasq. The binary, launcher, and data all survive on `/data`.
 
 ### Docker
 
