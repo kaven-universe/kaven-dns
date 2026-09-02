@@ -7,8 +7,6 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
-	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,17 +16,17 @@ import (
 	"github.com/miekg/dns"
 
 	"kaven.xyz/kaven/kaven-dns/internal/auth"
+	"kaven.xyz/kaven/kaven-dns/internal/buildinfo"
 	"kaven.xyz/kaven/kaven-dns/internal/cache"
 	"kaven.xyz/kaven/kaven-dns/internal/config"
 	"kaven.xyz/kaven/kaven-dns/internal/history"
 	"kaven.xyz/kaven/kaven-dns/internal/logstore"
 	"kaven.xyz/kaven/kaven-dns/internal/resolver"
 	"kaven.xyz/kaven/kaven-dns/internal/rules"
+	"kaven.xyz/kaven/kaven-dns/internal/systeminfo"
 	"kaven.xyz/kaven/kaven-dns/internal/update"
 	webassets "kaven.xyz/kaven/kaven-dns/src/web"
 )
-
-const Version = "1.3.0-go"
 
 type Dependencies struct {
 	Config        *config.Store
@@ -42,7 +40,13 @@ type Dependencies struct {
 	ApplyDNS      func(string, int) error
 	Shutdown      func()
 	UpdateChecker func(context.Context) (update.Result, error)
+	System        SystemMonitor
 }
+
+type SystemMonitor interface {
+	Snapshot() systeminfo.Snapshot
+}
+
 type Server struct {
 	deps       Dependencies
 	mu         sync.RWMutex
@@ -50,15 +54,19 @@ type Server struct {
 	listener   net.Listener
 	address    string
 	port       int
-	started    time.Time
 	eventSlots chan struct{}
 }
 
 func New(deps Dependencies) *Server {
 	if deps.UpdateChecker == nil {
-		deps.UpdateChecker = func(ctx context.Context) (update.Result, error) { return update.Check(ctx, nil, "1.3.0") }
+		deps.UpdateChecker = func(ctx context.Context) (update.Result, error) {
+			return update.Check(ctx, nil, buildinfo.StableVersion())
+		}
 	}
-	s := &Server{deps: deps, started: time.Now(), eventSlots: make(chan struct{}, 4)}
+	if deps.System == nil {
+		deps.System = systeminfo.New()
+	}
+	s := &Server{deps: deps, eventSlots: make(chan struct{}, 4)}
 	mux := http.NewServeMux()
 	s.routes(mux)
 	s.http = &http.Server{Handler: securityHeaders(mux), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second}
@@ -137,7 +145,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 
 func (s *Server) setupStatus(w http.ResponseWriter, r *http.Request) {
 	cfg := s.deps.Config.Get()
-	writeJSON(w, 200, map[string]any{"needsSetup": cfg.PasswordHash == "", "version": Version, "localIPs": localIPs()})
+	writeJSON(w, 200, map[string]any{"needsSetup": cfg.PasswordHash == "", "version": buildinfo.Version, "commit": buildinfo.Commit, "localIPs": localIPs()})
 }
 func (s *Server) setupCheck(w http.ResponseWriter, r *http.Request) {
 	if s.deps.Config.Get().PasswordHash != "" {
@@ -440,13 +448,18 @@ func (s *Server) state() map[string]any {
 	return map[string]any{"stats": s.deps.History.Stats(), "analytics": s.deps.History.Analytics(), "cache": s.deps.Cache.Info(), "system": system, "dns": dnsState}
 }
 func (s *Server) runtimeState() (map[string]any, any) {
-	var memory runtime.MemStats
-	runtime.ReadMemStats(&memory)
 	dnsState := any(nil)
 	if s.deps.DNSStatus != nil {
 		dnsState = s.deps.DNSStatus()
 	}
-	return map[string]any{"processRSSMB": memory.Sys / 1048576, "uptimeSeconds": int64(time.Since(s.started).Seconds()), "hostname": hostname(), "os": runtime.GOOS, "arch": runtime.GOARCH, "nodeVersion": "Go " + runtime.Version()}, dnsState
+	system := s.deps.System.Snapshot()
+	return map[string]any{
+		"hostname": system.Hostname, "platform": system.Platform, "release": system.Release,
+		"arch": system.Arch, "runtimeName": system.RuntimeName, "runtimeVersion": system.RuntimeVersion,
+		"cores": system.Cores, "totalMemMB": system.TotalMemMB, "usedMemMB": system.UsedMemMB,
+		"processRSSMB": system.ProcessRSSMB, "processCpu": system.ProcessCPU,
+		"systemCpu": system.SystemCPU, "uptimeSeconds": system.UptimeSeconds,
+	}, dnsState
 }
 func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
 	limit := integer(r.URL.Query().Get("limit"), 400)
@@ -865,7 +878,6 @@ func sse(w http.ResponseWriter, event string, value any) {
 	data, _ := json.Marshal(value)
 	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
 }
-func hostname() string { value, _ := os.Hostname(); return value }
 func probeDNS(address string, port int) (string, string) {
 	endpoint := net.JoinHostPort(address, strconv.Itoa(port))
 	udpState, tcpState := "ok", "ok"

@@ -16,7 +16,7 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 - **Upstream racing**: default upstreams are queried in parallel and the fastest successful response wins; TC-flagged answers are automatically retried over TCP
 - **Bilingual Web console** (Chinese / English, simple password authentication):
   - Language switcher on the login page and in the header; the preference is remembered and auto-detected from the browser on first visit
-  - Dashboard: at-a-glance overview — query volume, rule/cache/forward hits, failures, average latency, cache hit rate, a top-6 preview of top domains / active clients, and the 20 most recent queries; server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, Node version)
+  - Dashboard: at-a-glance overview — query volume, rule/cache/forward hits, failures, average latency, cache hit rate, a top-6 preview of top domains / active clients, and the 20 most recent queries; server cards for uptime, process/system CPU usage, memory (process RSS + system), and host info (hostname, OS, arch, runtime version)
   - Queries tab: a 60-minute query/latency/failure trend chart, plus the complete live query history as a sortable table (click any column header) with a domain search box, a time-range selector (last 15m/1h/6h/24h/7d, or a custom from/to range), and column-header filter popovers (funnel icon → pick a value → Reset/Confirm) on Domain, Client, Type, Source, Rule/Upstream and Status (OK or failed)
   - Domains tab / Clients tab: the complete top-domains and active-clients rankings as sortable, searchable tables with the same column-header filter popover on Failures (all / has failures / no failures), each on its own page (not capped to the Dashboard's top-6 preview)
   - Authenticated SSE streams batched live updates to visible consoles, with automatic reconnect, periodic REST fallback, and a persistent bilingual warning while the server is unreachable; analytics use the retained query window, which survives a normal restart (saved on clean shutdown, restored on the next start) and is only lost on a crash
@@ -92,6 +92,10 @@ Build it on Windows with Go and `tar` available:
 ```powershell
 ./scripts/build-router.ps1
 ```
+
+The build embeds the version from `package.json` and the current Git commit,
+which are available from the setup-status API. Pass `-Version <version>` to
+override the display version for a release build.
 
 Copy `dist/kaven-dns-openwrt-arm64.tar.gz` to the router, extract it, and follow
 the included `README.txt`. The installer preserves configuration on upgrades

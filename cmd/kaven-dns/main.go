@@ -45,7 +45,7 @@ func main() {
 	if err := dnsService.Start(cfg.BindAddress, cfg.DNSPort); err != nil {
 		log.Fatalf("start DNS: %v", err)
 	}
-	log.Printf("Kaven DNS Go prototype listening on %s:%d (UDP + TCP)", cfg.BindAddress, cfg.DNSPort)
+	log.Printf("Kaven DNS listening on %s:%d (UDP + TCP)", cfg.BindAddress, cfg.DNSPort)
 	authManager := auth.New(filepath.Join(dataDir, "sessions.json"), func() time.Duration { return time.Duration(cfgStore.Get().SessionTTLHours) * time.Hour }, func(password string) bool { return auth.VerifyPassword(password, cfgStore.Get().PasswordHash) })
 	shutdownRequested := make(chan struct{})
 	requestShutdown := func() {

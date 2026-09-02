@@ -1,5 +1,6 @@
 param(
-  [string]$OutputDirectory = 'dist'
+  [string]$OutputDirectory = 'dist',
+  [string]$Version = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,6 +10,22 @@ $packageName = 'kaven-dns-openwrt-arm64'
 $packageRoot = Join-Path $outputRoot $packageName
 $archivePath = Join-Path $outputRoot "$packageName.tar.gz"
 $checksumPath = "$archivePath.sha256"
+
+if (-not $Version) {
+  $manifest = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'package.json') | ConvertFrom-Json
+  $Version = "$($manifest.version)-go"
+}
+$commit = ''
+if (Get-Command git -ErrorAction SilentlyContinue) {
+  $commit = (& git -C $repositoryRoot rev-parse --short=12 HEAD 2>$null)
+  if ($LASTEXITCODE -ne 0) {
+    $commit = ''
+  }
+}
+$linkerFlags = "-s -w -X kaven.xyz/kaven/kaven-dns/internal/buildinfo.Version=$Version"
+if ($commit) {
+  $linkerFlags += " -X kaven.xyz/kaven/kaven-dns/internal/buildinfo.Commit=$commit"
+}
 
 $goCommand = Get-Command go -ErrorAction SilentlyContinue
 if ($goCommand) {
@@ -37,7 +54,7 @@ try {
   $env:GOOS = 'linux'
   $env:GOARCH = 'arm64'
   $env:GOARM64 = 'v8.0'
-  & $goExecutable build -trimpath -ldflags '-s -w' -o (Join-Path $packageRoot 'kaven-dns') ./cmd/kaven-dns
+  & $goExecutable build -trimpath -ldflags $linkerFlags -o (Join-Path $packageRoot 'kaven-dns') ./cmd/kaven-dns
   if ($LASTEXITCODE -ne 0) {
     throw "go build failed with exit code $LASTEXITCODE"
   }
@@ -61,4 +78,5 @@ $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archivePath).Hash.ToLowerI
 Set-Content -LiteralPath $checksumPath -Value "$hash  $packageName.tar.gz" -Encoding ascii
 
 Write-Host "Created $archivePath"
+Write-Host "Version: $Version"
 Write-Host "SHA-256: $hash"

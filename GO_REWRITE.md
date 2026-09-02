@@ -23,6 +23,8 @@ The Go implementation is being developed alongside the production Node.js applic
 - Stable GitHub release checks with a five-second timeout and bounded response parsing
 - Chinese and English errors for authentication, listener, update, configuration, and rule-validation paths
 - OpenWrt arm64 package with `procd`, upgrade-safe installation, and low-memory defaults
+- Linux `/proc` CPU, memory, RSS, host, and Go runtime metrics for the shared dashboard
+- Build-time version and commit metadata plus a compiled-process DNS/Web/shutdown smoke test
 
 ## Remaining compatibility work
 
@@ -36,6 +38,10 @@ Build the OpenWrt arm64 bundle on Windows:
 ```powershell
 ./scripts/build-router.ps1
 ```
+
+The script derives the Go display version from `package.json`; release builds
+can override it with `-Version 1.3.0-go`. The version and Git commit are linked
+into the executable without requiring source edits.
 
 The command creates `dist/kaven-dns-openwrt-arm64.tar.gz` and its SHA-256
 checksum. The bundle contains the static executable, a `procd` service,

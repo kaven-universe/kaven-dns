@@ -79,6 +79,8 @@ function createSystemMonitor() {
       release: os.release(),
       arch: os.arch(),
       nodeVersion: process.version,
+      runtimeName: 'Node',
+      runtimeVersion: process.version,
       cores,
       totalMemMB: Math.round(totalMem / 1048576),
       usedMemMB: Math.round((totalMem - freeMem) / 1048576),
