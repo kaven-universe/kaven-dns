@@ -2,8 +2,11 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -15,6 +18,7 @@ import (
 	"kaven.xyz/kaven/kaven-dns/internal/cache"
 	"kaven.xyz/kaven/kaven-dns/internal/config"
 	"kaven.xyz/kaven/kaven-dns/internal/history"
+	"kaven.xyz/kaven/kaven-dns/internal/logstore"
 	"kaven.xyz/kaven/kaven-dns/internal/resolver"
 	"kaven.xyz/kaven/kaven-dns/internal/rules"
 )
@@ -37,7 +41,7 @@ func testServer(t *testing.T) (*httptest.Server, *auth.Manager) {
 	dnsCache := cache.New(20)
 	dnsResolver := &resolver.Resolver{Rules: ruleStore, Cache: dnsCache, Config: cfgStore.Get}
 	manager := auth.New(filepath.Join(dir, "sessions.json"), func() time.Duration { return time.Hour }, func(password string) bool { return auth.VerifyPassword(password, cfgStore.Get().PasswordHash) })
-	service := New(Dependencies{Config: cfgStore, Rules: ruleStore, History: queries, Cache: dnsCache, Resolver: dnsResolver, Auth: manager, DNSStatus: func() any { return map[string]any{"listening": true} }})
+	service := New(Dependencies{Config: cfgStore, Rules: ruleStore, History: queries, Cache: dnsCache, Resolver: dnsResolver, Auth: manager, Logs: logstore.New(20), DNSStatus: func() any { return map[string]any{"listening": true} }})
 	server := httptest.NewServer(service.http.Handler)
 	t.Cleanup(func() { server.Close(); manager.Close() })
 	return server, manager
@@ -83,6 +87,10 @@ func TestLoginRuleCRUDAndConfigPrivacy(t *testing.T) {
 	if listed.status != 200 || !bytes.Contains(listed.body, []byte("fixed.test")) {
 		t.Fatalf("rules=%d %s", listed.status, listed.body)
 	}
+	logs := requestJSON(t, "GET", server.URL+"/api/logs?limit=20", token, nil)
+	if logs.status != 200 || !bytes.Contains(logs.body, []byte("added fixed.test")) {
+		t.Fatalf("logs=%d %s", logs.status, logs.body)
+	}
 	cfg := requestJSON(t, "GET", server.URL+"/api/config", token, nil)
 	if bytes.Contains(cfg.body, []byte("passwordHash")) || !bytes.Contains(cfg.body, []byte("hasPassword")) {
 		t.Fatalf("config leaked or incomplete: %s", cfg.body)
@@ -116,6 +124,67 @@ func TestQueryResetAndInitialEventSnapshot(t *testing.T) {
 	if response.StatusCode != 200 || !strings.Contains(text, "event: snapshot") || !strings.Contains(text, "\"queries\":[]") {
 		t.Fatalf("event response=%d %q", response.StatusCode, text)
 	}
+}
+
+func TestMovesWebListenerAndRollsBackBusyTarget(t *testing.T) {
+	dir := t.TempDir()
+	first := availableHTTPPort(t)
+	second := availableHTTPPort(t)
+	cfg := config.Defaults()
+	cfg.WebPort = first
+	hash, _ := auth.HashPassword("correct")
+	cfg.PasswordHash = hash
+	cfgStore := config.NewStore(filepath.Join(dir, "config.json"), cfg)
+	ruleStore, _ := rules.Load(filepath.Join(dir, "rules.json"))
+	queries := history.New(10, 0)
+	dnsCache := cache.New(10)
+	dnsResolver := &resolver.Resolver{Rules: ruleStore, Cache: dnsCache, Config: cfgStore.Get}
+	manager := auth.New("", func() time.Duration { return time.Hour }, func(value string) bool { return value == "correct" })
+	defer manager.Close()
+	appliedDNSPort := 0
+	service := New(Dependencies{Config: cfgStore, Rules: ruleStore, History: queries, Cache: dnsCache, Resolver: dnsResolver, Auth: manager, ApplyDNS: func(_ string, port int) error { appliedDNSPort = port; return nil }})
+	if err := service.Start("127.0.0.1", first); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = service.Shutdown(ctx)
+	})
+	token := manager.Login("correct", "127.0.0.1").Token
+	moved := requestJSON(t, "PUT", fmt.Sprintf("http://127.0.0.1:%d/api/config", first), token, map[string]any{"webPort": second, "dnsPort": 5354})
+	if moved.status != 200 || !bytes.Contains(moved.body, []byte("newWebUrl")) || appliedDNSPort != 5354 {
+		t.Fatalf("move=%d %s dns=%d", moved.status, moved.body, appliedDNSPort)
+	}
+	current := requestJSON(t, "GET", fmt.Sprintf("http://127.0.0.1:%d/api/config", second), token, nil)
+	if current.status != 200 {
+		t.Fatalf("new listener=%d %s", current.status, current.body)
+	}
+	busy, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	busyPort := busy.Addr().(*net.TCPAddr).Port
+	defer busy.Close()
+	failed := requestJSON(t, "PUT", fmt.Sprintf("http://127.0.0.1:%d/api/config", second), token, map[string]any{"webPort": busyPort})
+	if failed.status != 400 {
+		t.Fatalf("busy move=%d %s", failed.status, failed.body)
+	}
+	restored := requestJSON(t, "GET", fmt.Sprintf("http://127.0.0.1:%d/api/config", second), token, nil)
+	if restored.status != 200 {
+		t.Fatalf("rollback listener=%d %s", restored.status, restored.body)
+	}
+}
+
+func availableHTTPPort(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	_ = listener.Close()
+	return port
 }
 
 type apiResponse struct {

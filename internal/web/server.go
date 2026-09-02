@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -20,32 +21,43 @@ import (
 	"kaven.xyz/kaven/kaven-dns/internal/cache"
 	"kaven.xyz/kaven/kaven-dns/internal/config"
 	"kaven.xyz/kaven/kaven-dns/internal/history"
+	"kaven.xyz/kaven/kaven-dns/internal/logstore"
 	"kaven.xyz/kaven/kaven-dns/internal/resolver"
 	"kaven.xyz/kaven/kaven-dns/internal/rules"
+	"kaven.xyz/kaven/kaven-dns/internal/update"
 	webassets "kaven.xyz/kaven/kaven-dns/src/web"
 )
 
 const Version = "1.3.0-go"
 
 type Dependencies struct {
-	Config    *config.Store
-	Rules     *rules.Store
-	History   *history.Store
-	Cache     *cache.Cache
-	Resolver  *resolver.Resolver
-	Auth      *auth.Manager
-	DNSStatus func() any
-	Shutdown  func()
+	Config        *config.Store
+	Rules         *rules.Store
+	History       *history.Store
+	Cache         *cache.Cache
+	Resolver      *resolver.Resolver
+	Auth          *auth.Manager
+	Logs          *logstore.Store
+	DNSStatus     func() any
+	ApplyDNS      func(string, int) error
+	Shutdown      func()
+	UpdateChecker func(context.Context) (update.Result, error)
 }
 type Server struct {
 	deps       Dependencies
+	mu         sync.RWMutex
 	http       *http.Server
 	listener   net.Listener
+	address    string
+	port       int
 	started    time.Time
 	eventSlots chan struct{}
 }
 
 func New(deps Dependencies) *Server {
+	if deps.UpdateChecker == nil {
+		deps.UpdateChecker = func(ctx context.Context) (update.Result, error) { return update.Check(ctx, nil, "1.3.0") }
+	}
 	s := &Server{deps: deps, started: time.Now(), eventSlots: make(chan struct{}, 4)}
 	mux := http.NewServeMux()
 	s.routes(mux)
@@ -53,20 +65,47 @@ func New(deps Dependencies) *Server {
 	return s
 }
 func (s *Server) Start(address string, port int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.startLocked(address, port)
+}
+func (s *Server) startLocked(address string, port int) error {
 	listener, err := net.Listen("tcp", net.JoinHostPort(address, strconv.Itoa(port)))
 	if err != nil {
 		return err
 	}
 	s.listener = listener
+	s.address, s.port = address, port
 	go func() { _ = s.http.Serve(listener) }()
 	return nil
 }
 func (s *Server) Shutdown(ctx context.Context) error { return s.http.Shutdown(ctx) }
 func (s *Server) Addr() net.Addr {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if s.listener == nil {
 		return nil
 	}
 	return s.listener.Addr()
+}
+func (s *Server) Move(address string, port int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.listener != nil && s.address == address && s.port == port {
+		return nil
+	}
+	old, oldAddress, oldPort := s.listener, s.address, s.port
+	if old != nil {
+		_ = old.Close()
+	}
+	if err := s.startLocked(address, port); err == nil {
+		return nil
+	}
+	rollbackErr := s.startLocked(oldAddress, oldPort)
+	if rollbackErr != nil {
+		return fmt.Errorf("move Web listener failed and rollback failed: %w", rollbackErr)
+	}
+	return fmt.Errorf("move Web listener: address or port is unavailable")
 }
 
 func (s *Server) routes(mux *http.ServeMux) {
@@ -90,9 +129,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.Handle("PUT /api/config", s.protect(http.HandlerFunc(s.putConfig)))
 	mux.Handle("POST /api/resolve", s.protect(http.HandlerFunc(s.resolve)))
 	mux.Handle("GET /api/events", s.protect(http.HandlerFunc(s.events)))
-	mux.Handle("GET /api/update", s.protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, 200, map[string]any{"currentVersion": Version, "latestVersion": Version, "updateAvailable": false})
-	})))
+	mux.Handle("GET /api/update", s.protect(http.HandlerFunc(s.checkUpdate)))
 	mux.Handle("POST /api/shutdown", s.protect(http.HandlerFunc(s.shutdown)))
 	assets, _ := fs.Sub(webassets.Files, "public")
 	mux.Handle("/", http.FileServer(http.FS(assets)))
@@ -126,8 +163,14 @@ func (s *Server) setupCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg := s.deps.Config.Get()
-	available := body.DNSPort == cfg.DNSPort && (body.BindAddress == cfg.BindAddress || cfg.BindAddress == "0.0.0.0")
-	writeJSON(w, 200, map[string]any{"available": available, "udp": map[bool]string{true: "ok", false: "busy"}[available], "tcp": map[bool]string{true: "ok", false: "busy"}[available], "address": body.BindAddress, "port": body.DNSPort, "self": available})
+	self := body.DNSPort == cfg.DNSPort && (body.BindAddress == cfg.BindAddress || cfg.BindAddress == "0.0.0.0")
+	udpState, tcpState := "ok", "ok"
+	available := self
+	if !self {
+		udpState, tcpState = probeDNS(body.BindAddress, body.DNSPort)
+		available = udpState == "ok" && tcpState == "ok"
+	}
+	writeJSON(w, 200, map[string]any{"available": available, "udp": udpState, "tcp": tcpState, "address": body.BindAddress, "port": body.DNSPort, "self": self})
 }
 func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 	cfg := s.deps.Config.Get()
@@ -170,7 +213,38 @@ func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, err.Error())
 		return
 	}
-	writeJSON(w, 200, map[string]any{"ok": true, "restartRequired": true})
+	updated := s.deps.Config.Get()
+	dnsChanged := updated.DNSPort != cfg.DNSPort || updated.BindAddress != cfg.BindAddress
+	webChanged := updated.WebPort != cfg.WebPort || updated.WebBindAddress != cfg.WebBindAddress
+	dnsApplied := !dnsChanged
+	if dnsChanged && s.deps.ApplyDNS != nil {
+		if err := s.deps.ApplyDNS(updated.BindAddress, updated.DNSPort); err != nil {
+			_ = s.deps.Config.Replace(cfg)
+			writeError(w, 400, message(r, "DNS listener change failed; previous settings were restored", "DNS 监听地址修改失败，已恢复原设置"))
+			return
+		}
+		dnsApplied = true
+	}
+	if webChanged {
+		if err := s.Move(updated.WebBindAddress, updated.WebPort); err != nil {
+			if dnsApplied && dnsChanged && s.deps.ApplyDNS != nil {
+				_ = s.deps.ApplyDNS(cfg.BindAddress, cfg.DNSPort)
+			}
+			_ = s.deps.Config.Replace(cfg)
+			writeError(w, 400, message(r, "Web listener change failed; previous settings were restored", "Web 监听地址修改失败，已恢复原设置"))
+			return
+		}
+	}
+	response := map[string]any{"ok": true, "restartRequired": !dnsApplied, "dns": map[string]any{"applied": dnsApplied, "address": updated.BindAddress, "port": updated.DNSPort, "listening": dnsApplied, "error": ""}}
+	if webChanged {
+		host := updated.WebBindAddress
+		if host == "0.0.0.0" || host == "::" {
+			host = "127.0.0.1"
+		}
+		response["newWebUrl"] = "http://" + net.JoinHostPort(host, strconv.Itoa(updated.WebPort))
+	}
+	writeJSON(w, 200, response)
+	s.record("setup", "first-run setup completed", "log")
 }
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -181,10 +255,12 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	result := s.deps.Auth.Login(body.Password, remoteIP(r))
 	if !result.OK {
-		writeError(w, 401, result.Error)
+		s.record("auth", "login failed from "+remoteIP(r), "warn")
+		writeError(w, 401, localizeAuthError(r, result.Error))
 		return
 	}
 	writeJSON(w, 200, map[string]any{"token": result.Token})
+	s.record("auth", "signed in from "+remoteIP(r), "log")
 }
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	s.deps.Auth.Logout(token(r))
@@ -210,7 +286,7 @@ func (s *Server) addRule(w http.ResponseWriter, r *http.Request) {
 	}
 	rule, problems := rules.Validate(rule)
 	if len(problems) > 0 {
-		writeError(w, 400, strings.Join(problems, "; "))
+		writeError(w, 400, strings.Join(localizeRuleProblems(r, problems), "; "))
 		return
 	}
 	created, err := s.deps.Rules.Add(rule)
@@ -219,6 +295,7 @@ func (s *Server) addRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 201, map[string]any{"rule": created})
+	s.record("rules", "added "+firstDomain(created), "log")
 }
 func (s *Server) updateRule(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -252,7 +329,7 @@ func (s *Server) updateRule(w http.ResponseWriter, r *http.Request) {
 	}
 	rule, problems := rules.Validate(rule)
 	if len(problems) > 0 {
-		writeError(w, 400, strings.Join(problems, "; "))
+		writeError(w, 400, strings.Join(localizeRuleProblems(r, problems), "; "))
 		return
 	}
 	updated, _, err := s.deps.Rules.Update(id, rule)
@@ -261,6 +338,7 @@ func (s *Server) updateRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"rule": updated})
+	s.record("rules", "updated "+firstDomain(updated), "log")
 }
 func (s *Server) removeRule(w http.ResponseWriter, r *http.Request) {
 	removed, err := s.deps.Rules.Remove(r.PathValue("id"))
@@ -273,6 +351,7 @@ func (s *Server) removeRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"ok": true})
+	s.record("rules", "removed rule "+r.PathValue("id"), "log")
 }
 func (s *Server) importRules(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -292,7 +371,7 @@ func (s *Server) importRules(w http.ResponseWriter, r *http.Request) {
 	for i, item := range body.Rules {
 		value, errs := rules.Validate(item)
 		if len(errs) > 0 {
-			problems = append(problems, fmt.Sprintf("#%d: %s", i+1, errs[0]))
+			problems = append(problems, fmt.Sprintf("#%d: %s", i+1, localizeRuleProblems(r, errs)[0]))
 			continue
 		}
 		if value.ID == "" {
@@ -338,6 +417,7 @@ func (s *Server) importRules(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "mode": map[bool]string{true: "replace", false: "merge"}[body.Mode == "replace"], "added": added, "updated": updated, "skipped": len(problems), "errors": problems[:min(5, len(problems))]})
+	s.record("rules", fmt.Sprintf("imported: +%d added, %d updated, %d skipped", added, updated, len(problems)), "log")
 }
 
 func (s *Server) queries(w http.ResponseWriter, r *http.Request) {
@@ -352,6 +432,7 @@ func (s *Server) resetQueries(w http.ResponseWriter, r *http.Request) {
 	cleared := s.deps.History.Reset()
 	_ = s.deps.History.Persist()
 	writeJSON(w, 200, map[string]any{"ok": true, "cleared": cleared})
+	s.record("queries", fmt.Sprintf("reset queries: %d entries cleared", cleared), "log")
 }
 func (s *Server) stats(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, s.state()) }
 func (s *Server) state() map[string]any {
@@ -368,10 +449,31 @@ func (s *Server) runtimeState() (map[string]any, any) {
 	return map[string]any{"processRSSMB": memory.Sys / 1048576, "uptimeSeconds": int64(time.Since(s.started).Seconds()), "hostname": hostname(), "os": runtime.GOOS, "arch": runtime.GOARCH, "nodeVersion": "Go " + runtime.Version()}, dnsState
 }
 func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]any{"consoleLogs": []any{}, "operationLogs": []any{}})
+	limit := integer(r.URL.Query().Get("limit"), 400)
+	if limit > 2000 {
+		limit = 400
+	}
+	if s.deps.Logs == nil {
+		writeJSON(w, 200, map[string]any{"consoleLogs": []any{}, "operationLogs": []any{}})
+		return
+	}
+	writeJSON(w, 200, s.deps.Logs.Snapshot(limit))
 }
 func (s *Server) flushCache(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]any{"ok": true, "flushed": s.deps.Cache.Flush()})
+	flushed := s.deps.Cache.Flush()
+	writeJSON(w, 200, map[string]any{"ok": true, "flushed": flushed})
+	s.record("cache", fmt.Sprintf("flushed %d cached entries", flushed), "log")
+}
+func (s *Server) checkUpdate(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	result, err := s.deps.UpdateChecker(ctx)
+	if err != nil {
+		s.record("updates", "check failed: "+err.Error(), "warn")
+		writeError(w, 502, message(r, "Unable to check for updates; try again later", "无法检查更新，请稍后重试"))
+		return
+	}
+	writeJSON(w, 200, result)
 }
 
 func (s *Server) getConfig(w http.ResponseWriter, r *http.Request) {
@@ -456,14 +558,43 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		writeError(w, 400, err.Error())
+		writeError(w, 400, localizeConfigError(r, err.Error()))
 		return
 	}
 	updated := s.deps.Config.Get()
+	dnsChanged := updated.DNSPort != old.DNSPort || updated.BindAddress != old.BindAddress
+	webChanged := updated.WebPort != old.WebPort || updated.WebBindAddress != old.WebBindAddress
+	dnsApplied := !dnsChanged
+	if dnsChanged && s.deps.ApplyDNS != nil {
+		if err := s.deps.ApplyDNS(updated.BindAddress, updated.DNSPort); err != nil {
+			_ = s.deps.Config.Replace(old)
+			writeError(w, 400, message(r, "DNS listener change failed; the previous listener was restored", "DNS 监听地址修改失败，已恢复原监听地址"))
+			return
+		}
+		dnsApplied = true
+	}
+	if webChanged {
+		if err := s.Move(updated.WebBindAddress, updated.WebPort); err != nil {
+			if dnsApplied && dnsChanged && s.deps.ApplyDNS != nil {
+				_ = s.deps.ApplyDNS(old.BindAddress, old.DNSPort)
+			}
+			_ = s.deps.Config.Replace(old)
+			writeError(w, 400, message(r, "Web listener change failed; previous settings were restored", "Web 监听地址修改失败，已恢复原设置"))
+			return
+		}
+	}
 	s.deps.History.SetLimits(updated.QueryHistoryMaxEntries, updated.QueryRetentionDays)
 	s.deps.Cache.SetMaxEntries(updated.CacheMaxEntries)
-	restartRequired := updated.DNSPort != old.DNSPort || updated.WebPort != old.WebPort || updated.BindAddress != old.BindAddress || updated.WebBindAddress != old.WebBindAddress
-	writeJSON(w, 200, map[string]any{"ok": true, "passwordChanged": passwordChanged, "adjusted": map[string]any{}, "restartRequired": restartRequired})
+	response := map[string]any{"ok": true, "passwordChanged": passwordChanged, "adjusted": map[string]any{}, "restartRequired": !dnsApplied}
+	if webChanged {
+		host := updated.WebBindAddress
+		if host == "0.0.0.0" || host == "::" {
+			host = "127.0.0.1"
+		}
+		response["newWebUrl"] = "http://" + net.JoinHostPort(host, strconv.Itoa(updated.WebPort))
+	}
+	writeJSON(w, 200, response)
+	s.record("config", "configuration updated", "log")
 }
 
 func (s *Server) resolve(w http.ResponseWriter, r *http.Request) {
@@ -524,7 +655,13 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		latest = initial[0].Sequence
 	}
 	system, dnsState := s.runtimeState()
-	sse(w, "snapshot", map[string]any{"stats": s.deps.History.Stats(), "analytics": s.deps.History.Analytics(), "cache": s.deps.Cache.Info(), "system": system, "dns": dnsState, "queries": initial, "logs": map[string]any{"consoleLogs": []any{}, "operationLogs": []any{}}})
+	logs := any(map[string]any{"consoleLogs": []any{}, "operationLogs": []any{}})
+	logSequence := uint64(0)
+	if s.deps.Logs != nil {
+		logs = s.deps.Logs.Snapshot(500)
+		logSequence = s.deps.Logs.Sequence()
+	}
+	sse(w, "snapshot", map[string]any{"stats": s.deps.History.Stats(), "analytics": s.deps.History.Analytics(), "cache": s.deps.Cache.Info(), "system": system, "dns": dnsState, "queries": initial, "logs": logs})
 	flusher.Flush()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -549,23 +686,43 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			if len(additions) > 0 {
 				sse(w, "queries", map[string]any{"entries": additions, "dropped": 0})
 			}
+			if s.deps.Logs != nil {
+				updates, sequence := s.deps.Logs.Since(logSequence)
+				logSequence = sequence
+				if len(updates.ConsoleLogs) > 0 || len(updates.OperationLogs) > 0 {
+					sse(w, "logs", map[string]any{"consoleLogs": updates.ConsoleLogs, "operationLogs": updates.OperationLogs, "dropped": 0})
+				}
+			}
 			sse(w, "stats", s.state())
 			flusher.Flush()
 		}
 	}
 }
 func (s *Server) shutdown(w http.ResponseWriter, r *http.Request) {
+	s.record("shutdown", "stopping via the Web console", "log")
 	writeJSON(w, 200, map[string]any{"ok": true})
 	if s.deps.Shutdown != nil {
 		go s.deps.Shutdown()
 	}
 }
 
+func (s *Server) record(kind, text, level string) {
+	if s.deps.Logs != nil {
+		s.deps.Logs.Record(kind, text, level)
+	}
+}
+func firstDomain(rule rules.Rule) string {
+	if len(rule.Domains) > 0 {
+		return rule.Domains[0]
+	}
+	return "?"
+}
+
 func decode(w http.ResponseWriter, r *http.Request, value any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 256*1024)
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(value); err != nil {
-		writeError(w, 400, "Request body is not valid JSON")
+		writeError(w, 400, message(r, "Request body is not valid JSON", "请求内容不是有效的 JSON"))
 		return false
 	}
 	return true
@@ -606,6 +763,75 @@ func message(r *http.Request, en, zh string) string {
 	}
 	return en
 }
+func localizeAuthError(r *http.Request, value string) string {
+	if !strings.HasPrefix(strings.ToLower(r.Header.Get("Accept-Language")), "zh") {
+		return value
+	}
+	if strings.HasPrefix(value, "Too many attempts") {
+		parts := strings.Fields(value)
+		seconds := "?"
+		if len(parts) > 0 {
+			seconds = parts[len(parts)-2]
+		}
+		return "尝试次数过多，请在 " + seconds + " 秒后重试"
+	}
+	if value == "Incorrect password" {
+		return "密码不正确"
+	}
+	return "无法创建登录会话"
+}
+func localizeConfigError(r *http.Request, value string) string {
+	if !strings.HasPrefix(strings.ToLower(r.Header.Get("Accept-Language")), "zh") {
+		return value
+	}
+	switch {
+	case strings.Contains(value, "current password"):
+		return "当前密码不正确"
+	case strings.Contains(value, "at least 6"):
+		return "新密码至少需要 6 个字符"
+	case strings.Contains(value, "upstream"):
+		return "上游 DNS 配置无效"
+	case strings.Contains(value, "bind address"):
+		return "监听地址无效"
+	case strings.Contains(value, "Port"), strings.Contains(value, "port"):
+		return "端口必须在 1 到 65535 之间"
+	default:
+		return "配置内容无效"
+	}
+}
+func localizeRuleProblems(r *http.Request, problems []string) []string {
+	if !strings.HasPrefix(strings.ToLower(r.Header.Get("Accept-Language")), "zh") {
+		return problems
+	}
+	out := make([]string, len(problems))
+	for i, value := range problems {
+		switch {
+		case strings.HasPrefix(value, "At least one domain"):
+			out[i] = "至少需要一个域名"
+		case strings.HasPrefix(value, "At most 500"):
+			out[i] = "每条规则最多 500 个域名"
+		case strings.HasPrefix(value, "Invalid domain"):
+			out[i] = "域名格式无效"
+		case strings.Contains(value, "record type"):
+			out[i] = "记录类型不支持"
+		case strings.Contains(value, "rule mode"):
+			out[i] = "规则模式不支持"
+		case strings.HasPrefix(value, "TTL"):
+			out[i] = "TTL 必须在 1 到 86400 之间"
+		case strings.Contains(value, "upstream"):
+			out[i] = "上游 DNS 格式无效"
+		case strings.Contains(value, "IPv4"):
+			out[i] = "A 记录必须使用 IPv4 地址"
+		case strings.Contains(value, "IPv6"):
+			out[i] = "AAAA 记录必须使用 IPv6 地址"
+		case strings.Contains(value, "CNAME"):
+			out[i] = "CNAME 必须是一个主机名"
+		default:
+			out[i] = "固定解析值不能为空"
+		}
+	}
+	return out
+}
 func localIPs() []string {
 	var out []string
 	interfaces, _ := net.Interfaces()
@@ -640,6 +866,35 @@ func sse(w http.ResponseWriter, event string, value any) {
 	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
 }
 func hostname() string { value, _ := os.Hostname(); return value }
+func probeDNS(address string, port int) (string, string) {
+	endpoint := net.JoinHostPort(address, strconv.Itoa(port))
+	udpState, tcpState := "ok", "ok"
+	udpAddress, err := net.ResolveUDPAddr("udp", endpoint)
+	if err != nil {
+		return err.Error(), err.Error()
+	}
+	udp, err := net.ListenUDP("udp", udpAddress)
+	if err != nil {
+		udpState = networkError(err)
+	} else {
+		_ = udp.Close()
+	}
+	tcp, err := net.Listen("tcp", endpoint)
+	if err != nil {
+		tcpState = networkError(err)
+	} else {
+		_ = tcp.Close()
+	}
+	return udpState, tcpState
+}
+func networkError(err error) string {
+	if operation, ok := err.(*net.OpError); ok {
+		if temporary, ok := operation.Err.(interface{ Unwrap() error }); ok && temporary.Unwrap() != nil {
+			return temporary.Unwrap().Error()
+		}
+	}
+	return err.Error()
+}
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")

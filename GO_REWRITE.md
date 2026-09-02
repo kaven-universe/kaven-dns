@@ -18,13 +18,14 @@ The Go implementation is being developed alongside the production Node.js applic
 - Existing `queries.json` restoration and clean-shutdown persistence
 - Existing offline Vue console embedded in the executable
 - Atomic configuration, rule, session, and query snapshot writes
+- Live DNS UDP/TCP and Web listener changes with rollback on bind failure
+- Bounded console and operation logs exposed through REST and SSE
+- Stable GitHub release checks with a five-second timeout and bounded response parsing
+- Chinese and English errors for authentication, listener, update, configuration, and rule-validation paths
 
 ## Remaining compatibility work
 
-- Live DNS and Web listener moves when their configured ports or bind addresses change
-- Console/operation log capture
-- Remote stable-version update checks
-- Full bilingual validation parity for every API error
+- Exact bilingual wording parity for lower-priority validation edge cases
 - Automated visual checks for Chinese, English, desktop, and narrow mobile layouts
 
 ## Router build target

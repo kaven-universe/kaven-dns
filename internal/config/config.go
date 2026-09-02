@@ -64,6 +64,16 @@ func (s *Store) Update(change func(*Config) error) error {
 	s.value = next
 	return nil
 }
+func (s *Store) Replace(value Config) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	value.Sanitize()
+	if err := Save(s.path, value); err != nil {
+		return err
+	}
+	s.value = value
+	return nil
+}
 
 func Defaults() Config {
 	return Config{

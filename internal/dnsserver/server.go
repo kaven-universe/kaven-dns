@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -16,9 +18,18 @@ import (
 )
 
 type Server struct {
+	mu       sync.RWMutex
 	resolver *resolver.Resolver
 	history  *history.Store
 	udp, tcp *dns.Server
+	status   Status
+}
+
+type Status struct {
+	Port      int    `json:"port"`
+	Address   string `json:"address"`
+	Listening bool   `json:"listening"`
+	Error     string `json:"error"`
 }
 
 func New(resolver *resolver.Resolver, history *history.Store) *Server {
@@ -26,42 +37,89 @@ func New(resolver *resolver.Resolver, history *history.Store) *Server {
 }
 
 func (s *Server) Start(address string, port int) error {
-	endpoint := net.JoinHostPort(address, fmt.Sprint(port))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	udp, tcp, err := s.startPair(address, port)
+	if err != nil {
+		s.status = Status{Port: port, Address: address, Error: err.Error()}
+		return err
+	}
+	s.udp, s.tcp = udp, tcp
+	s.status = Status{Port: port, Address: address, Listening: true}
+	return nil
+}
+
+func (s *Server) startPair(address string, port int) (*dns.Server, *dns.Server, error) {
+	endpoint := net.JoinHostPort(address, strconv.Itoa(port))
 	udpAddress, err := net.ResolveUDPAddr("udp", endpoint)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	udp, err := net.ListenUDP("udp", udpAddress)
 	if err != nil {
-		return fmt.Errorf("listen UDP: %w", err)
+		return nil, nil, fmt.Errorf("listen UDP: %w", err)
 	}
 	tcp, err := net.Listen("tcp", endpoint)
 	if err != nil {
 		udp.Close()
-		return fmt.Errorf("listen TCP: %w", err)
+		return nil, nil, fmt.Errorf("listen TCP: %w", err)
 	}
 	handler := dns.HandlerFunc(s.handle)
-	s.udp = &dns.Server{PacketConn: udp, Handler: handler}
-	s.tcp = &dns.Server{Listener: tcp, Handler: handler}
+	udpServer := &dns.Server{PacketConn: udp, Handler: handler}
+	tcpServer := &dns.Server{Listener: tcp, Handler: handler}
 	go func() {
-		if err := s.udp.ActivateAndServe(); err != nil && !strings.Contains(err.Error(), "closed") {
+		if err := udpServer.ActivateAndServe(); err != nil && !strings.Contains(err.Error(), "closed") {
 			log.Printf("DNS UDP stopped: %v", err)
 		}
 	}()
 	go func() {
-		if err := s.tcp.ActivateAndServe(); err != nil && !strings.Contains(err.Error(), "closed") {
+		if err := tcpServer.ActivateAndServe(); err != nil && !strings.Contains(err.Error(), "closed") {
 			log.Printf("DNS TCP stopped: %v", err)
 		}
 	}()
-	return nil
+	return udpServer, tcpServer, nil
 }
 
 func (s *Server) Shutdown() {
-	if s.udp != nil {
-		_ = s.udp.Shutdown()
+	s.mu.Lock()
+	udp, tcp := s.udp, s.tcp
+	s.udp, s.tcp = nil, nil
+	s.status.Listening = false
+	s.mu.Unlock()
+	shutdownPair(udp, tcp)
+}
+
+func (s *Server) Restart(address string, port int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	oldUDP, oldTCP, old := s.udp, s.tcp, s.status
+	if old.Listening && old.Port == port && old.Address == address {
+		return nil
 	}
-	if s.tcp != nil {
-		_ = s.tcp.Shutdown()
+	s.udp, s.tcp = nil, nil
+	shutdownPair(oldUDP, oldTCP)
+	udp, tcp, err := s.startPair(address, port)
+	if err == nil {
+		s.udp, s.tcp = udp, tcp
+		s.status = Status{Port: port, Address: address, Listening: true}
+		return nil
+	}
+	rollbackUDP, rollbackTCP, rollbackErr := s.startPair(old.Address, old.Port)
+	if rollbackErr == nil {
+		s.udp, s.tcp = rollbackUDP, rollbackTCP
+		s.status = old
+	} else {
+		s.status = Status{Port: port, Address: address, Error: fmt.Sprintf("%v; rollback failed: %v", err, rollbackErr)}
+	}
+	return err
+}
+func (s *Server) Status() Status { s.mu.RLock(); defer s.mu.RUnlock(); return s.status }
+func shutdownPair(udp, tcp *dns.Server) {
+	if udp != nil {
+		_ = udp.Shutdown()
+	}
+	if tcp != nil {
+		_ = tcp.Shutdown()
 	}
 }
 

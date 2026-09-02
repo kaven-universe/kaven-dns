@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -14,6 +15,7 @@ import (
 	"kaven.xyz/kaven/kaven-dns/internal/config"
 	"kaven.xyz/kaven/kaven-dns/internal/dnsserver"
 	"kaven.xyz/kaven/kaven-dns/internal/history"
+	"kaven.xyz/kaven/kaven-dns/internal/logstore"
 	"kaven.xyz/kaven/kaven-dns/internal/resolver"
 	"kaven.xyz/kaven/kaven-dns/internal/rules"
 	"kaven.xyz/kaven/kaven-dns/internal/web"
@@ -21,6 +23,8 @@ import (
 
 func main() {
 	dataDir := config.DataDir()
+	logs := logstore.New(200)
+	log.SetOutput(io.MultiWriter(os.Stderr, logs.Writer()))
 	cfg, err := config.Load(filepath.Join(dataDir, "config.json"))
 	if err != nil {
 		log.Fatalf("load config: %v", err)
@@ -51,9 +55,7 @@ func main() {
 			close(shutdownRequested)
 		}
 	}
-	webService := web.New(web.Dependencies{Config: cfgStore, Rules: ruleStore, History: queryHistory, Cache: dnsCache, Resolver: dnsResolver, Auth: authManager, DNSStatus: func() any {
-		return map[string]any{"port": cfg.DNSPort, "address": cfg.BindAddress, "listening": true, "error": ""}
-	}, Shutdown: requestShutdown})
+	webService := web.New(web.Dependencies{Config: cfgStore, Rules: ruleStore, History: queryHistory, Cache: dnsCache, Resolver: dnsResolver, Auth: authManager, Logs: logs, DNSStatus: func() any { return dnsService.Status() }, ApplyDNS: func(address string, port int) error { return dnsService.Restart(address, port) }, Shutdown: requestShutdown})
 	if err := webService.Start(cfg.WebBindAddress, cfg.WebPort); err != nil {
 		dnsService.Shutdown()
 		log.Fatalf("start Web console: %v", err)

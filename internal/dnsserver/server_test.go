@@ -47,6 +47,51 @@ func TestAnswersUDPAndTCP(t *testing.T) {
 	}
 }
 
+func TestRestartMovesBothTransportsAndRollsBackOnFailure(t *testing.T) {
+	first := availablePort(t)
+	second := availablePort(t)
+	cfg := config.Defaults()
+	store := rules.New([]rules.Rule{{Domains: []string{"fixed.test"}, Type: "A", Mode: "fixed", Value: "10.0.0.1", TTL: 60, Enabled: true}})
+	server := New(&resolver.Resolver{Rules: store, Cache: cache.New(10), Config: func() config.Config { return cfg }}, history.New(10, 0))
+	if err := server.Start("127.0.0.1", first); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(server.Shutdown)
+	if err := server.Restart("127.0.0.1", second); err != nil {
+		t.Fatal(err)
+	}
+	queryServer(t, second, "udp")
+	queryServer(t, second, "tcp")
+	busy, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	busyPort := busy.Addr().(*net.TCPAddr).Port
+	defer busy.Close()
+	if err := server.Restart("127.0.0.1", busyPort); err == nil {
+		t.Fatal("restart unexpectedly succeeded")
+	}
+	queryServer(t, second, "udp")
+	queryServer(t, second, "tcp")
+	if status := server.Status(); !status.Listening || status.Port != second {
+		t.Fatalf("status=%#v", status)
+	}
+}
+
+func queryServer(t *testing.T, port int, network string) {
+	t.Helper()
+	message := new(dns.Msg)
+	message.SetQuestion("fixed.test.", dns.TypeA)
+	client := &dns.Client{Net: network, Timeout: time.Second}
+	response, _, err := client.Exchange(message, net.JoinHostPort("127.0.0.1", fmt.Sprint(port)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Rcode != dns.RcodeSuccess || len(response.Answer) != 1 {
+		t.Fatalf("response=%#v", response)
+	}
+}
+
 func availablePort(t *testing.T) int {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
