@@ -1,6 +1,8 @@
 param(
   [string]$OutputDirectory = 'dist',
-  [string]$Version = ''
+  [string]$Version = '',
+  [ValidateSet('arm64', 'armv7')]
+  [string]$Architecture = 'arm64'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,7 +15,7 @@ if ($Version -notmatch '^[0-9A-Za-z][0-9A-Za-z._+-]*$') {
   throw "Invalid version: $Version"
 }
 $fileVersion = $Version -replace '[^0-9A-Za-z._-]', '-'
-$packageName = "kaven-dns_${fileVersion}_openwrt_arm64"
+$packageName = "kaven-dns_${fileVersion}_openwrt_$Architecture"
 $packageRoot = Join-Path $outputRoot $packageName
 $archivePath = Join-Path $outputRoot "$packageName.tar.gz"
 $checksumPath = "$archivePath.sha256"
@@ -51,12 +53,14 @@ New-Item -ItemType Directory -Path $packageRoot | Out-Null
 $oldCgoEnabled = $env:CGO_ENABLED
 $oldGoOS = $env:GOOS
 $oldGoArch = $env:GOARCH
+$oldGoArm = $env:GOARM
 $oldGoArm64 = $env:GOARM64
 try {
   $env:CGO_ENABLED = '0'
   $env:GOOS = 'linux'
-  $env:GOARCH = 'arm64'
-  $env:GOARM64 = 'v8.0'
+  $env:GOARCH = if ($Architecture -eq 'armv7') { 'arm' } else { 'arm64' }
+  $env:GOARM = if ($Architecture -eq 'armv7') { '7' } else { $null }
+  $env:GOARM64 = if ($Architecture -eq 'arm64') { 'v8.0' } else { $null }
   & $goExecutable build -trimpath -ldflags $linkerFlags -o (Join-Path $packageRoot 'kaven-dns') ./cmd/kaven-dns
   if ($LASTEXITCODE -ne 0) {
     throw "go build failed with exit code $LASTEXITCODE"
@@ -65,6 +69,7 @@ try {
   $env:CGO_ENABLED = $oldCgoEnabled
   $env:GOOS = $oldGoOS
   $env:GOARCH = $oldGoArch
+  $env:GOARM = $oldGoArm
   $env:GOARM64 = $oldGoArm64
 }
 

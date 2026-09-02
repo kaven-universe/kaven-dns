@@ -99,21 +99,22 @@ make a downloaded raw binary executable with `chmod +x <filename>` before
 starting it. The program reads and writes `data/` beside the working directory
 unless `KAVEN_DATA_DIR` is set.
 
-### OpenWrt arm64 routers
+### OpenWrt routers
 
-The static arm64 `procd` bundle is intended for low-memory OpenWrt devices such
-as the Xiaomi BE3600.
+The static `procd` bundle supports arm64 and ARMv7 low-memory OpenWrt devices.
 Build it on Windows with Go and `tar` available:
 
 ```powershell
 ./scripts/build-router.ps1
+# For ARMv7 routers:
+./scripts/build-router.ps1 -Architecture armv7
 ```
 
 The build embeds the version from `VERSION` and the current Git commit,
 which are available from the setup-status API. Pass `-Version <version>` to
 override the display version for a release build.
 
-Copy `dist/kaven-dns_<version>_openwrt_arm64.tar.gz` to the router, extract it,
+Copy the matching `dist/kaven-dns_<version>_openwrt_<architecture>.tar.gz` to the router, extract it,
 and follow the included `README.txt`. The installer preserves configuration on
 upgrades and uses these conservative defaults:
 
@@ -128,8 +129,9 @@ instructions first verify Kaven DNS and then configure `dnsmasq` to forward to
 it. Do not change `dnsmasq` until the Kaven DNS service is confirmed running,
 or the router can temporarily lose DNS resolution.
 
-This bundle requires an arm64 OpenWrt installation and root shell access. It
-cannot be installed through the standard Xiaomi stock-firmware Web interface.
+This bundle requires an arm64 or ARMv7 OpenWrt installation and root shell
+access. It cannot be installed through the standard Xiaomi stock-firmware Web
+interface.
 
 ### Docker
 

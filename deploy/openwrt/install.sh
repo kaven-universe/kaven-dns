@@ -10,12 +10,19 @@ fail() {
 [ "$(id -u)" -eq 0 ] || fail 'run this installer as root'
 [ -f /etc/openwrt_release ] || fail 'this package is intended for OpenWrt'
 
+PACKAGE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
 case "$(uname -m)" in
-	aarch64|arm64) ;;
-	*) fail "unsupported architecture: $(uname -m) (expected arm64)" ;;
+	aarch64|arm64) expected_arch='arm64' ;;
+	armv7l|armv7|armhf) expected_arch='armv7' ;;
+	*) fail "unsupported architecture: $(uname -m) (expected arm64 or armv7)" ;;
 esac
 
-PACKAGE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+case "$(basename "$PACKAGE_DIR")" in
+	*_openwrt_arm64) [ "$expected_arch" = 'arm64' ] || fail 'package architecture is arm64, router is armv7' ;;
+	*_openwrt_armv7) [ "$expected_arch" = 'armv7' ] || fail 'package architecture is armv7, router is arm64' ;;
+esac
+
 [ -f "$PACKAGE_DIR/kaven-dns" ] || fail 'package is missing kaven-dns'
 [ -f "$PACKAGE_DIR/kaven-dns.init" ] || fail 'package is missing kaven-dns.init'
 [ -f "$PACKAGE_DIR/kaven-dns.uci" ] || fail 'package is missing kaven-dns.uci'
