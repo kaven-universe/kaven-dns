@@ -78,12 +78,12 @@ func (s *Store) Snapshot(limit int) Snapshot {
 	}
 	consoleStart := max(0, len(s.console)-limit)
 	operationStart := max(0, len(s.operations)-limit)
-	return Snapshot{ConsoleLogs: append([]ConsoleEntry(nil), s.console[consoleStart:]...), OperationLogs: append([]OperationEntry(nil), s.operations[operationStart:]...)}
+	return Snapshot{ConsoleLogs: append([]ConsoleEntry{}, s.console[consoleStart:]...), OperationLogs: append([]OperationEntry{}, s.operations[operationStart:]...)}
 }
 func (s *Store) Since(sequence uint64) (Snapshot, uint64) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	snapshot := Snapshot{}
+	snapshot := Snapshot{ConsoleLogs: []ConsoleEntry{}, OperationLogs: []OperationEntry{}}
 	for _, entry := range s.console {
 		if entry.Sequence > sequence {
 			snapshot.ConsoleLogs = append(snapshot.ConsoleLogs, entry)

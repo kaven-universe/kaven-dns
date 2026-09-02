@@ -265,6 +265,8 @@ func (s *Store) Analytics() Analytics {
 	out.Trend.WindowMinutes = 60
 	out.Trend.BucketMinutes = 5
 	out.Trend.Buckets = make([]Bucket, count)
+	out.TopDomains = make([]RankedDomain, 0)
+	out.ActiveClients = make([]RankedClient, 0)
 	out.ActiveMinutes = 5
 	out.RetainedQueries = len(s.entries)
 	for i := range count {

@@ -213,7 +213,7 @@ func newID() string {
 func (s *Store) Snapshot() []Rule {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return append([]Rule(nil), s.rules...)
+	return append([]Rule{}, s.rules...)
 }
 
 func (s *Store) Find(domain, queryType string) *Match {

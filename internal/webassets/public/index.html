@@ -2489,7 +2489,19 @@ const app = createApp({
     },
     applyLiveState(data) {
       if (data.stats) this.stats = data.stats;
-      if (data.analytics) this.analytics = data.analytics;
+      if (data.analytics) {
+        this.analytics = {
+          ...this.analytics,
+          ...data.analytics,
+          trend: {
+            ...this.analytics.trend,
+            ...(data.analytics.trend || {}),
+            buckets: data.analytics.trend && Array.isArray(data.analytics.trend.buckets) ? data.analytics.trend.buckets : [],
+          },
+          topDomains: Array.isArray(data.analytics.topDomains) ? data.analytics.topDomains : [],
+          activeClients: Array.isArray(data.analytics.activeClients) ? data.analytics.activeClients : [],
+        };
+      }
       if (data.cache) this.cacheInfo = data.cache;
       if (data.system) this.systemInfo = data.system;
       if (data.dns !== undefined) this.dnsStatus = data.dns;
@@ -2499,7 +2511,12 @@ const app = createApp({
       if (event === 'snapshot') {
         this.applyLiveState(data);
         if (Array.isArray(data.queries)) this.queries = data.queries;
-        if (data.logs) this.logs = data.logs;
+        if (data.logs) {
+          this.logs = {
+            consoleLogs: Array.isArray(data.logs.consoleLogs) ? data.logs.consoleLogs : [],
+            operationLogs: Array.isArray(data.logs.operationLogs) ? data.logs.operationLogs : [],
+          };
+        }
         if (this.queryFilterActive) this.refreshFilteredQueries();
       } else if (event === 'stats') {
         this.applyLiveState(data);

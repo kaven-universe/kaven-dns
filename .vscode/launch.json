@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Kaven DNS",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/kaven-dns",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "KAVEN_DATA_DIR": "${workspaceFolder}/dist/debug-data",
+        "KAVEN_DNS_PORT": "5330",
+        "KAVEN_WEB_PORT": "18080",
+        "GOMEMLIMIT": "64MiB",
+        "GOMAXPROCS": "2"
+      }
+    }
+  ]
+}

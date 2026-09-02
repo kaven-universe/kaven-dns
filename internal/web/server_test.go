@@ -121,8 +121,22 @@ func TestQueryResetAndInitialEventSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(buffer[:n])
-	if response.StatusCode != 200 || !strings.Contains(text, "event: snapshot") || !strings.Contains(text, "\"queries\":[]") {
+	if response.StatusCode != 200 || !strings.Contains(text, "event: snapshot") || !strings.Contains(text, "\"queries\":[]") ||
+		!strings.Contains(text, "\"topDomains\":[]") || !strings.Contains(text, "\"activeClients\":[]") ||
+		!strings.Contains(text, "\"consoleLogs\":[]") {
 		t.Fatalf("event response=%d %q", response.StatusCode, text)
+	}
+}
+
+func TestEmptyCollectionResponsesUseJSONArrays(t *testing.T) {
+	server, manager := testServer(t)
+	token := manager.Login("correct", "127.0.0.1").Token
+
+	for _, endpoint := range []string{"/api/stats", "/api/rules", "/api/queries", "/api/logs"} {
+		response := requestJSON(t, "GET", server.URL+endpoint, token, nil)
+		if response.status != http.StatusOK || bytes.Contains(response.body, []byte(":null")) {
+			t.Fatalf("%s response=%d %s", endpoint, response.status, response.body)
+		}
 	}
 }
 

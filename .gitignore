@@ -3,3 +3,4 @@ data/
 dist/
 *.log
 .zcode/
+__debug_bin*
