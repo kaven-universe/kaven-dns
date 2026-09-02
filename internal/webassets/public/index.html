@@ -579,7 +579,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
         <div class="stat-grid system-grid">
           <div class="stat"><div class="label">{{ t('stats.uptimeCard') }}</div><div class="value">{{ fmtDuration(stats.uptimeMs) }}</div><div class="sub">{{ t('stats.startedAt', {time: fmtDateTime(stats.startedAt)}) }}</div></div>
           <div class="stat"><div class="label">{{ t('stats.cpu') }}</div><div class="value">{{ systemInfo.processCpu ?? 0 }}%</div><div class="sub">{{ t('stats.processCpu', {n: systemInfo.processCpu ?? 0}) }} · {{ t('stats.systemCpu', {n: systemInfo.systemCpu ?? 0}) }} · {{ t('stats.cores', {n: systemInfo.cores ?? 0}) }}</div></div>
-          <div class="stat"><div class="label">{{ t('stats.memory') }}</div><div class="value">{{ t('stats.processMem', {n: systemInfo.processRSSMB ?? 0}) }}</div><div class="sub">{{ t('stats.systemMem', {used: ((systemInfo.usedMemMB ?? 0)/1024).toFixed(1), total: ((systemInfo.totalMemMB ?? 0)/1024).toFixed(1)}) }}</div></div>
+          <div class="stat"><div class="label">{{ t('stats.memory') }}</div><div class="value">{{ t('stats.processMem', {n: fmtMemory(systemInfo.processRSSMB)}) }}</div><div class="sub">{{ t('stats.systemMem', {used: fmtMemory(systemInfo.usedMemMB), total: fmtMemory(systemInfo.totalMemMB)}) }}</div></div>
           <div class="stat"><div class="label">{{ t('stats.server') }}</div><div class="value" style="font-size:18px;word-break:break-all">{{ systemInfo.hostname || '-' }}</div><div class="sub" :title="systemInfo.release">{{ systemInfo.platform }} · {{ systemInfo.arch }} · {{ systemInfo.runtimeName || '-' }} {{ systemInfo.runtimeVersion || '' }} · <span :title="dnsTitle" :style="{color: dnsStatus && dnsStatus.listening ? 'var(--green)' : 'var(--red)', fontWeight:600}">DNS {{ dnsStatus ? (dnsStatus.address || '0.0.0.0') + ':' + dnsStatus.port : '-' }} {{ dnsStatus && dnsStatus.listening ? '●' : '✕' }}</span></div></div>
         </div>
 
@@ -597,13 +597,13 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
               </div>
               <div class="query-kpi">
                 <div class="label">{{ t('stats.cacheEfficiency') }}</div>
-                <div class="value">{{ cacheInfo.hitRate ?? 0 }}%</div>
+                <div class="value">{{ fmtMetric(cacheInfo.hitRate) }}%</div>
                 <div class="sub">{{ t('stats.cacheHits', {n: stats.cache ?? 0}) }}</div>
               </div>
               <div class="query-kpi">
                 <div class="label">{{ t('stats.avgLatency') }}</div>
-                <div class="value">{{ stats.avgLatencyMs ?? 0 }} ms</div>
-                <div class="sub">{{ t('stats.forwardAvg', {n: stats.forwardAvgMs ?? 0}) }}</div>
+                <div class="value">{{ fmtMetric(stats.avgLatencyMs) }} ms</div>
+                <div class="sub">{{ t('stats.forwardAvg', {n: fmtMetric(stats.forwardAvgMs)}) }}</div>
               </div>
             </div>
 
@@ -1127,7 +1127,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
               <div class="settings-maintenance-item">
                 <div>
                   <h4>{{ t('settings.cacheMgmt') }}</h4>
-                  <p>{{ t('settings.cacheInfo', {entries: cacheInfo.size ?? 0, hits: cacheInfo.hits ?? 0, rate: cacheInfo.hitRate ?? 0}) }}</p>
+                  <p>{{ t('settings.cacheInfo', {entries: cacheInfo.size ?? 0, hits: cacheInfo.hits ?? 0, rate: fmtMetric(cacheInfo.hitRate)}) }}</p>
                 </div>
                 <button class="btn danger" @click="flushCache">{{ t('settings.flushCache') }}</button>
               </div>
@@ -1385,8 +1385,8 @@ const I18N = {
     'stats.systemCpu': 'System {n}%',
     'stats.cores': '{n} cores',
     'stats.memory': 'Memory',
-    'stats.processMem': 'Process {n} MB',
-    'stats.systemMem': 'System {used} / {total} GB',
+    'stats.processMem': 'Process {n}',
+    'stats.systemMem': 'System {used} / {total}',
     'stats.server': 'Server',
     'stats.queryOverview': 'Query Overview',
     'stats.sinceStart': 'Since service start',
@@ -1671,8 +1671,8 @@ const I18N = {
     'stats.systemCpu': '系统 {n}%',
     'stats.cores': '{n} 核心',
     'stats.memory': '内存',
-    'stats.processMem': '进程 {n} MB',
-    'stats.systemMem': '系统 {used} / {total} GB',
+    'stats.processMem': '进程 {n}',
+    'stats.systemMem': '系统 {used} / {total}',
     'stats.server': '服务器',
     'stats.queryOverview': '查询概览',
     'stats.sinceStart': '自服务启动以来',
@@ -2996,6 +2996,19 @@ const app = createApp({
       if (seconds < 10) return this.t('analytics.justNow');
       if (seconds < 60) return this.t('analytics.secondsAgo', { n: seconds });
       return this.t('analytics.minutesAgo', { n: Math.floor(seconds / 60) });
+    },
+    fmtMetric(value) {
+      return Number(value || 0).toFixed(2);
+    },
+    fmtMemory(valueMB) {
+      let value = Math.max(0, Number(valueMB) || 0);
+      const units = ['MB', 'GB', 'TB'];
+      let unit = 0;
+      while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit++;
+      }
+      return `${value.toFixed(unit === 0 ? 0 : 2)} ${units[unit]}`;
     },
     rankWidth(count, items) {
       const max = Math.max(...items.map(item => item.count), 1);
