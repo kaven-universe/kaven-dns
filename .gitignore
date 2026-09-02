@@ -4,3 +4,4 @@ dist/
 *.log
 .zcode/
 __debug_bin*
+kaven-dns-debug.exe

@@ -7,9 +7,12 @@
       "request": "launch",
       "mode": "debug",
       "program": "${workspaceFolder}/cmd/kaven-dns",
+      "output": "${workspaceFolder}/kaven-dns-debug.exe",
       "cwd": "${workspaceFolder}",
       "env": {
         "KAVEN_DATA_DIR": "${workspaceFolder}/dist/debug-data",
+        "KAVEN_BIND_ADDRESS": "127.0.0.1",
+        "KAVEN_WEB_BIND_ADDRESS": "127.0.0.1",
         "KAVEN_DNS_PORT": "5330",
         "KAVEN_WEB_PORT": "18080",
         "GOMEMLIMIT": "64MiB",

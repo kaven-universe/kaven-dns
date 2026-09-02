@@ -212,7 +212,7 @@ A rule holds a group of domain patterns; a query matches the rule when it matche
 | `cacheMaxEntries` | 2000 | Maximum DNS cache entries |
 | `sessionTtlHours` | 24 | Web console session validity in hours; renewed on activity (idle timeout) and persisted across restarts |
 
-Environment variables: `KAVEN_DNS_PORT` / `KAVEN_WEB_PORT` temporarily override the ports (useful for debugging); `KAVEN_DATA_DIR` relocates the data directory (defaults to `<working-directory>/data`). Standard Go runtime settings such as `GOMEMLIMIT` and `GOMAXPROCS` can constrain memory and CPU parallelism.
+Environment variables: `KAVEN_DNS_PORT` / `KAVEN_WEB_PORT` temporarily override the ports, and `KAVEN_BIND_ADDRESS` / `KAVEN_WEB_BIND_ADDRESS` temporarily override their listener addresses (useful for loopback-only debugging); `KAVEN_DATA_DIR` relocates the data directory (defaults to `<working-directory>/data`). Standard Go runtime settings such as `GOMEMLIMIT` and `GOMAXPROCS` can constrain memory and CPU parallelism.
 
 ## REST API Summary
 

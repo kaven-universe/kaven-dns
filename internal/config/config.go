@@ -120,6 +120,12 @@ func Save(path string, cfg Config) error {
 }
 
 func applyEnvironment(cfg *Config) {
+	if value := os.Getenv("KAVEN_BIND_ADDRESS"); value != "" {
+		cfg.BindAddress = value
+	}
+	if value := os.Getenv("KAVEN_WEB_BIND_ADDRESS"); value != "" {
+		cfg.WebBindAddress = value
+	}
 	if value := os.Getenv("KAVEN_DNS_PORT"); value != "" {
 		if port, err := strconv.Atoi(value); err == nil {
 			cfg.DNSPort = port

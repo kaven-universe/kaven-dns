@@ -26,14 +26,19 @@ func TestParseUpstream(t *testing.T) {
 	}
 }
 
-func TestLoadAppliesPortEnvironment(t *testing.T) {
+func TestLoadAppliesListenerEnvironment(t *testing.T) {
 	t.Setenv("KAVEN_DNS_PORT", "5353")
 	t.Setenv("KAVEN_WEB_PORT", "8181")
+	t.Setenv("KAVEN_BIND_ADDRESS", "127.0.0.1")
+	t.Setenv("KAVEN_WEB_BIND_ADDRESS", "127.0.0.1")
 	cfg, err := Load(t.TempDir() + "/missing.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.DNSPort != 5353 || cfg.WebPort != 8181 {
 		t.Fatalf("ports = %d, %d", cfg.DNSPort, cfg.WebPort)
+	}
+	if cfg.BindAddress != "127.0.0.1" || cfg.WebBindAddress != "127.0.0.1" {
+		t.Fatalf("bind addresses = %q, %q", cfg.BindAddress, cfg.WebBindAddress)
 	}
 }
