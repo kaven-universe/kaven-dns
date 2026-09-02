@@ -1,0 +1,18 @@
+{
+  "dnsPort": 5330,
+  "webPort": 8080,
+  "bindAddress": "127.0.0.1",
+  "webBindAddress": "0.0.0.0",
+  "upstreams": [
+    "223.5.5.5",
+    "119.29.29.29"
+  ],
+  "forwardTimeoutMs": 3000,
+  "ttlMin": 10,
+  "ttlMax": 3600,
+  "queryRetentionDays": 1,
+  "queryHistoryMaxEntries": 2000,
+  "cacheMaxEntries": 1000,
+  "sessionTtlHours": 24,
+  "passwordHash": ""
+}

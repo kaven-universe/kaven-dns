@@ -1,0 +1,5 @@
+config service 'main'
+	option enabled '1'
+	option data_dir '/etc/kaven-dns'
+	option memory_limit '64MiB'
+	option max_procs '2'

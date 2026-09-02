@@ -83,6 +83,34 @@ nslookup test.local 127.0.0.1
 
 ## Deployment
 
+### OpenWrt arm64 routers (Go rewrite)
+
+The `rewrite/go` branch includes a static arm64 build and `procd` deployment
+bundle intended for low-memory OpenWrt devices such as the Xiaomi BE3600.
+Build it on Windows with Go and `tar` available:
+
+```powershell
+./scripts/build-router.ps1
+```
+
+Copy `dist/kaven-dns-openwrt-arm64.tar.gz` to the router, extract it, and follow
+the included `README.txt`. The installer preserves configuration on upgrades
+and uses these conservative defaults:
+
+- Go memory limit: 64 MiB
+- Go CPU parallelism: 2
+- Query history: 2,000 entries
+- DNS cache: 1,000 entries
+- Kaven DNS: `127.0.0.1:5330`; Web console: `0.0.0.0:8080`
+
+Port 5330 avoids conflicting with OpenWrt's `dnsmasq` on port 53. The included
+instructions first verify Kaven DNS and then configure `dnsmasq` to forward to
+it. Do not change `dnsmasq` until the Kaven DNS service is confirmed running,
+or the router can temporarily lose DNS resolution.
+
+This bundle requires an arm64 OpenWrt installation and root shell access. It
+cannot be installed through the standard Xiaomi stock-firmware Web interface.
+
 ### Docker
 
 Prebuilt multi-architecture images (`linux/amd64` and `linux/arm64`) are published to Docker Hub and the GitHub Container Registry:
