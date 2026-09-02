@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the Node.js application runtime with the self-contained Go server
+  while preserving configuration, rules, sessions, query history, APIs, and
+  the embedded offline Web console
+- Docker images now run the Go binary directly as a non-root user
+- `VERSION` is now the canonical release version source
+
+### Added
+
+- Release builds for Linux, Windows, and macOS on amd64 and arm64
+- OpenWrt arm64 package with a `procd` service and low-memory defaults
+- Automated GitHub release artifacts and SHA-256 checksums
+- Compiled-process coverage for UDP/TCP DNS, HTTP authentication, build
+  metadata, graceful shutdown, and query persistence
+
 ## [1.3.0] - 2026-08-30
 
 ### Added

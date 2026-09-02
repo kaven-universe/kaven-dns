@@ -1,0 +1,128 @@
+name: Build release binaries
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./...
+      - run: go vet ./...
+
+  binaries:
+    needs: verify
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+            extension: .exe
+          - goos: windows
+            goarch: arm64
+            extension: .exe
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build
+        shell: bash
+        env:
+          TARGET_OS: ${{ matrix.goos }}
+          TARGET_ARCH: ${{ matrix.goarch }}
+          EXTENSION: ${{ matrix.extension }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then version="$(tr -d '\r\n' < VERSION)"; fi
+          name="kaven-dns_${version}_${TARGET_OS}_${TARGET_ARCH}${EXTENSION}"
+          CGO_ENABLED=0 GOOS="$TARGET_OS" GOARCH="$TARGET_ARCH" \
+            go build -trimpath \
+            -ldflags="-s -w -X kaven.xyz/kaven/kaven-dns/internal/buildinfo.Version=${version} -X kaven.xyz/kaven/kaven-dns/internal/buildinfo.Commit=${GITHUB_SHA::12}" \
+            -o "dist/$name" ./cmd/kaven-dns
+          (cd dist && sha256sum "$name" > "$name.sha256")
+      - uses: actions/upload-artifact@v7
+        with:
+          name: kaven-dns-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error
+
+  openwrt:
+    needs: verify
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build OpenWrt bundle
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then version="$(tr -d '\r\n' < VERSION)"; fi
+          package="kaven-dns_${version}_openwrt_arm64"
+          mkdir -p "dist/$package"
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOARM64=v8.0 \
+            go build -trimpath \
+            -ldflags="-s -w -X kaven.xyz/kaven/kaven-dns/internal/buildinfo.Version=${version} -X kaven.xyz/kaven/kaven-dns/internal/buildinfo.Commit=${GITHUB_SHA::12}" \
+            -o "dist/$package/kaven-dns" ./cmd/kaven-dns
+          cp deploy/openwrt/* "dist/$package/"
+          chmod 0755 "dist/$package/kaven-dns" "dist/$package/install.sh" "dist/$package/uninstall.sh" "dist/$package/kaven-dns.init"
+          tar -czf "dist/$package.tar.gz" -C dist "$package"
+          (cd dist && sha256sum "$package.tar.gz" > "$package.tar.gz.sha256")
+          rm -rf "dist/$package"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: kaven-dns-openwrt-arm64
+          path: dist/*
+          if-no-files-found: error
+
+  collect:
+    needs: [binaries, openwrt]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create combined checksums
+        working-directory: dist
+        run: sha256sum kaven-dns_* | grep -v '\.sha256$' > SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: kaven-dns-all-platforms
+          path: dist/*
+          if-no-files-found: error
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes
+          fi

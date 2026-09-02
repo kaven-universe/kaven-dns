@@ -5,16 +5,19 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$outputRoot = Join-Path $repositoryRoot $OutputDirectory
-$packageName = 'kaven-dns-openwrt-arm64'
+$outputRoot = if ([IO.Path]::IsPathRooted($OutputDirectory)) { $OutputDirectory } else { Join-Path $repositoryRoot $OutputDirectory }
+if (-not $Version) {
+  $Version = (Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'VERSION')).Trim()
+}
+if ($Version -notmatch '^[0-9A-Za-z][0-9A-Za-z._+-]*$') {
+  throw "Invalid version: $Version"
+}
+$fileVersion = $Version -replace '[^0-9A-Za-z._-]', '-'
+$packageName = "kaven-dns_${fileVersion}_openwrt_arm64"
 $packageRoot = Join-Path $outputRoot $packageName
 $archivePath = Join-Path $outputRoot "$packageName.tar.gz"
 $checksumPath = "$archivePath.sha256"
 
-if (-not $Version) {
-  $manifest = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'package.json') | ConvertFrom-Json
-  $Version = "$($manifest.version)-go"
-}
 $commit = ''
 if (Get-Command git -ErrorAction SilentlyContinue) {
   $commit = (& git -C $repositoryRoot rev-parse --short=12 HEAD 2>$null)

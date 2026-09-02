@@ -25,7 +25,7 @@ import (
 	"kaven.xyz/kaven/kaven-dns/internal/rules"
 	"kaven.xyz/kaven/kaven-dns/internal/systeminfo"
 	"kaven.xyz/kaven/kaven-dns/internal/update"
-	webassets "kaven.xyz/kaven/kaven-dns/src/web"
+	webassets "kaven.xyz/kaven/kaven-dns/internal/webassets"
 )
 
 type Dependencies struct {

@@ -31,9 +31,8 @@ type Rule struct {
 	UpdatedAt int64    `json:"updatedAt"`
 }
 
-// UnmarshalJSON preserves the Node implementation's compatibility behavior:
-// old rules without an enabled field are enabled, while an explicit false is
-// still honored.
+// UnmarshalJSON preserves persisted-rule compatibility: old rules without an
+// enabled field are enabled, while an explicit false is still honored.
 func (r *Rule) UnmarshalJSON(data []byte) error {
 	type plain Rule
 	var value struct {

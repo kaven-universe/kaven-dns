@@ -2,6 +2,9 @@ name: Build and publish Docker images
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: read
@@ -18,7 +21,16 @@ jobs:
           format: "YYYYMMDDHHmmss"
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
 
       - name: Docker meta
         id: docker_meta
@@ -61,5 +73,8 @@ jobs:
           push: true
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.ref_type == 'tag' && github.ref_name || '' }}
+            COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

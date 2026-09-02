@@ -3,7 +3,7 @@ package buildinfo
 import "strings"
 
 var (
-	Version = "1.3.0-go"
+	Version = "1.3.0"
 	Commit  = ""
 )
 

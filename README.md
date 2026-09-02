@@ -1,6 +1,6 @@
 # kaven-dns
 
-A DNS server built on Node.js with a Web console for monitoring and management.
+A self-contained Go DNS server with a Web console for monitoring and management.
 
 ![Dashboard screenshot](assets/screenshot-dashboard.png)
 
@@ -29,17 +29,18 @@ A DNS server built on Node.js with a Web console for monitoring and management.
 
 ## Quick Start
 
-Requires Node.js 22 or newer.
+To run from source, install Go 1.24 or newer:
 
 ```bash
-pnpm install
-pnpm start
+go run ./cmd/kaven-dns
 ```
+
+Prebuilt releases do not require Go or any other application runtime.
 
 On first run the console opens a **setup screen** where you set the admin password, the DNS/Web ports and the DNS bind address; then sign in with the password you chose.
 
 > Listening on port 53 requires administrator privileges:
-> - Windows: run the terminal as administrator; or start with a debug port first: `KAVEN_DNS_PORT=5330 pnpm start`
+> - Windows: run the terminal as administrator; or set `KAVEN_DNS_PORT=5330` and start on an unprivileged port
 > - After allowing UDP/TCP 53 through the firewall, LAN devices can point their DNS at this machine
 
 ## Usage
@@ -83,23 +84,38 @@ nslookup test.local 127.0.0.1
 
 ## Deployment
 
-### OpenWrt arm64 routers (Go rewrite)
+### Prebuilt binaries
 
-The `rewrite/go` branch includes a static arm64 build and `procd` deployment
-bundle intended for low-memory OpenWrt devices such as the Xiaomi BE3600.
+Release artifacts cover Linux, Windows, and macOS on amd64 and arm64. The
+OpenWrt arm64 bundle is published alongside them. Build every target locally
+from PowerShell with:
+
+```powershell
+./scripts/build-all.ps1
+```
+
+Outputs and `SHA256SUMS` are written to `dist/releases/`. On Linux or macOS,
+make a downloaded raw binary executable with `chmod +x <filename>` before
+starting it. The program reads and writes `data/` beside the working directory
+unless `KAVEN_DATA_DIR` is set.
+
+### OpenWrt arm64 routers
+
+The static arm64 `procd` bundle is intended for low-memory OpenWrt devices such
+as the Xiaomi BE3600.
 Build it on Windows with Go and `tar` available:
 
 ```powershell
 ./scripts/build-router.ps1
 ```
 
-The build embeds the version from `package.json` and the current Git commit,
+The build embeds the version from `VERSION` and the current Git commit,
 which are available from the setup-status API. Pass `-Version <version>` to
 override the display version for a release build.
 
-Copy `dist/kaven-dns-openwrt-arm64.tar.gz` to the router, extract it, and follow
-the included `README.txt`. The installer preserves configuration on upgrades
-and uses these conservative defaults:
+Copy `dist/kaven-dns_<version>_openwrt_arm64.tar.gz` to the router, extract it,
+and follow the included `README.txt`. The installer preserves configuration on
+upgrades and uses these conservative defaults:
 
 - Go memory limit: 64 MiB
 - Go CPU parallelism: 2
@@ -136,7 +152,7 @@ docker run -d \
   kavenzero/kaven-dns:latest
 ```
 
-Open `http://localhost:8080` to complete the first-run setup. The named volume preserves configuration, rules, sessions, and Queries history across container upgrades (`docker stop`/recreate sends `SIGTERM`, which the image's `dumb-init` entrypoint forwards to the Node process so it can save its state before exiting; `docker kill` skips this and loses unsaved history, same as any other unclean termination).
+Open `http://localhost:8080` to complete the first-run setup. The named volume preserves configuration, rules, sessions, and Queries history across container upgrades. The Go process handles `SIGTERM` directly and saves query history before exiting; `docker kill` skips graceful shutdown and can lose queries received since the previous clean stop.
 
 The container runs as a non-root user. If you do not want to grant permission to bind port 53, run DNS on an unprivileged port instead:
 
@@ -160,7 +176,10 @@ To build the image locally:
 docker build -t kaven-dns .
 ```
 
-The publishing workflow runs on manual dispatch (Actions tab). Images receive branch/tag, commit SHA, current date-time, and `latest` tags as applicable.
+The Docker workflow runs for version tags and manual dispatch. The release
+workflow builds all binary targets on version tags and publishes them with
+individual and combined SHA-256 checksums; manual runs retain the same files as
+GitHub Actions artifacts without creating a release.
 
 ## Rule Matching
 
@@ -185,13 +204,15 @@ A rule holds a group of domain patterns; a query matches the rule when it matche
 | `bindAddress` | 0.0.0.0 | DNS listen address; e.g. `127.0.0.1` for local only (coexists with the Windows ICS service that holds `0.0.0.0:53`) |
 | `webPort` | 8080 | Web console port; changes apply immediately after saving |
 | `webBindAddress` | 0.0.0.0 | Web console bind address; e.g. `127.0.0.1` for local-only, or a LAN IP to serve the console on that interface |
-| `upstreams` | `223.5.5.5, 119.29.29.29, 114.114.114.114` | Default upstream group (`ip` or `ip:port`) |
+| `upstreams` | `223.5.5.5, 119.29.29.29` | Default upstream group (`ip` or `ip:port`) |
 | `forwardTimeoutMs` | 3000 | Timeout per upstream forward |
 | `ttlMin` / `ttlMax` | 10 / 3600 | Cache TTL clamp range (seconds) |
-| `queryRetentionDays` | 7 | Days of query history to retain; 0 disables time-based trimming. Entries are also trimmed automatically (oldest first) if the system is low on free memory or this process's own memory usage grows large, so Queries can hold as much history as available memory allows rather than a small fixed count |
+| `queryRetentionDays` | 1 | Days of query history to retain; 0 disables time-based trimming |
+| `queryHistoryMaxEntries` | 10000 | Maximum retained query entries; lower this on memory-constrained devices |
+| `cacheMaxEntries` | 2000 | Maximum DNS cache entries |
 | `sessionTtlHours` | 24 | Web console session validity in hours; renewed on activity (idle timeout) and persisted across restarts |
 
-Environment variables: `KAVEN_DNS_PORT` / `KAVEN_WEB_PORT` temporarily override the ports (useful for debugging); `KAVEN_DATA_DIR` relocates the data directory (defaults to `<repo>/data`).
+Environment variables: `KAVEN_DNS_PORT` / `KAVEN_WEB_PORT` temporarily override the ports (useful for debugging); `KAVEN_DATA_DIR` relocates the data directory (defaults to `<working-directory>/data`). Standard Go runtime settings such as `GOMEMLIMIT` and `GOMAXPROCS` can constrain memory and CPU parallelism.
 
 ## REST API Summary
 
@@ -221,35 +242,29 @@ Error messages are localized when an `Accept-Language: zh` (or `en`) header is s
 ## Project Layout
 
 ```
-src/
-├── index.js          # Entry point: wires everything together and starts DNS + Web
-├── config.js         # Config load/persist (first-run setup wizard data)
-├── i18n.js           # zh/en message dictionaries for user-facing API errors
-├── system.js         # Server info + CPU/memory sampling for dashboard cards
-├── update.js         # Stable GitHub tag lookup and version comparison
-├── dns/
-│   ├── server.js     # UDP + TCP DNS server (dns2)
-│   ├── resolver.js   # Resolution pipeline: rule → fixed / cache / forward
-│   ├── forwarder.js  # Parallel upstream racing
-│   ├── cache.js      # LRU + TTL cache
-│   ├── matching.js   # Domain matching (wildcards, suffix priority)
-│   └── util.js       # Type maps and summary helpers
-├── store/
-│   ├── rules.js      # Rule CRUD + JSON persistence (hot reload)
-│   ├── queries.js    # Query history, analytics + persistence
-│   └── logs.js       # Console logs + operation records
-└── web/
-    ├── server.js     # Express REST API
-    ├── events.js     # Authenticated SSE batching + slow-client recovery
-    ├── auth.js       # Password login + token sessions
-    └── public/       # Vue3 single-file frontend (no build step, zh/en)
-        ├── index.html
-        └── vendor/vue.global.prod.js   # served locally, works offline
+cmd/kaven-dns/          # Composition root and compiled-process smoke test
+internal/
+├── auth/               # Password verification, throttling, bearer sessions
+├── buildinfo/          # Build-time version and commit metadata
+├── cache/               # TTL-aware bounded LRU cache
+├── config/              # Compatible configuration and sanitization
+├── dnsserver/           # UDP + TCP DNS listeners and query recording
+├── history/             # Retained queries, stats, and analytics
+├── logstore/            # Bounded console and operation logs
+├── persist/             # Atomic JSON persistence
+├── resolver/            # Rule → fixed/cache/forward resolution pipeline
+├── rules/               # Matching, validation, CRUD, and persistence
+├── systeminfo/          # Host/process CPU and memory metrics
+├── update/              # Stable GitHub tag lookup
+├── web/                 # HTTP API, SSE, listener lifecycle
+└── webassets/           # Embedded offline Vue console and vendored Vue
+deploy/openwrt/           # procd service and router installer
+scripts/                  # Cross-platform and OpenWrt build scripts
 ```
 
 ## Notes
 
-- The frontend serves Vue 3 locally (`web/public/vendor/`), so the console works in offline / intranet environments
+- The frontend serves embedded Vue 3 from `internal/webassets/public/vendor/`, so the console works in offline / intranet environments
 - Login sessions are stored in `data/sessions.json` (idle timeout, renewed on activity) so server restarts keep you signed in
 - Query history and its stats are saved to `data/queries.json` on a clean shutdown (SIGINT/SIGTERM) and restored on the next start, so a normal exit/restart doesn't lose history; there is no ongoing per-query disk write, and an unclean termination (crash, `kill -9`) still loses whatever wasn't saved at the last clean shutdown
 - Existing `logRetentionDays` settings and `data/querylog.json` snapshots are migrated automatically to `queryRetentionDays` and `data/queries.json`

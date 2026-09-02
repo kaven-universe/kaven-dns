@@ -16,7 +16,7 @@ func TestHistoryHasHardEntryBound(t *testing.T) {
 	}
 }
 
-func TestPersistAndLoadNodeCompatibleSnapshot(t *testing.T) {
+func TestPersistAndLoadCompatibleSnapshot(t *testing.T) {
 	path := t.TempDir() + "/queries.json"
 	store, err := Load(path, 10, 0)
 	if err != nil {
