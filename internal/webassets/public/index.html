@@ -1178,7 +1178,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   </footer>
 
   <!-- Rule editor modal -->
-  <div v-if="ruleModal.visible" class="modal-mask" @click.self="ruleModal.visible = false">
+  <div v-if="ruleModal.visible" class="modal-mask">
     <div class="modal">
       <h3>{{ ruleModal.editing ? t('modal.editTitle') : t('modal.addTitle') }}</h3>
       <div v-if="ruleModal.errors.length" class="form-errors">
@@ -1231,7 +1231,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   </div>
 
   <!-- Import modal -->
-  <div v-if="importModal.visible" class="modal-mask" @click.self="importModal.visible = false">
+  <div v-if="importModal.visible" class="modal-mask">
     <div class="modal">
       <h3>{{ t('rules.importTitle') }}</h3>
       <div v-if="importModal.errors.length" class="form-errors">
