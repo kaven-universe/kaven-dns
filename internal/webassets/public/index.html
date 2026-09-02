@@ -1043,6 +1043,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
               <button class="btn danger sm" @click="settings.upstreams.splice(i, 1)" :disabled="settings.upstreams.length <= 1">{{ t('settings.remove') }}</button>
             </div>
             <button class="btn secondary sm" @click="settings.upstreams.push('')">{{ t('settings.addUpstream') }}</button>
+            <button class="btn" :disabled="savingSettings" @click="saveUpstreams">{{ savingSettings ? t('settings.saving') : t('settings.saveUpstreams') }}</button>
           </div>
 
           <div class="card settings-ports">
@@ -1545,6 +1546,7 @@ const I18N = {
     'settings.upstreamPlaceholder': 'e.g. 223.5.5.5 or 8.8.8.8:53',
     'settings.remove': 'Remove',
     'settings.addUpstream': '+ Add upstream',
+    'settings.saveUpstreams': 'Save Upstreams',
     'settings.cacheQueries': 'Cache & Queries',
     'settings.forwardTimeout': 'Forward timeout (ms, 500-30000)',
     'settings.ttlRange': 'Cache TTL min / max (seconds)',
@@ -1831,6 +1833,7 @@ const I18N = {
     'settings.upstreamPlaceholder': '如 223.5.5.5 或 8.8.8.8:53',
     'settings.remove': '删除',
     'settings.addUpstream': '+ 添加上游',
+    'settings.saveUpstreams': '保存上游',
     'settings.cacheQueries': '缓存与查询',
     'settings.forwardTimeout': '单次转发超时（毫秒，500-30000）',
     'settings.ttlRange': '缓存 TTL 下限 / 上限（秒）',
@@ -2855,7 +2858,6 @@ const app = createApp({
       this.savingSettings = true;
       try {
         const body = {
-          upstreams: this.settings.upstreams.map(s => s.trim()).filter(Boolean),
           forwardTimeoutMs: this.settings.forwardTimeoutMs,
           ttlMin: this.settings.ttlMin, ttlMax: this.settings.ttlMax,
           queryRetentionDays: this.settings.queryRetentionDays,
@@ -2890,6 +2892,20 @@ const app = createApp({
         } else {
           this.showToast(this.t('toast.saved'));
         }
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.savingSettings = false;
+      }
+    },
+    async saveUpstreams() {
+      this.savingSettings = true;
+      try {
+        await this.api('/api/config', {
+          method: 'PUT',
+          body: { upstreams: this.settings.upstreams.map(s => s.trim()).filter(Boolean) },
+        });
+        this.showToast(this.t('toast.saved'));
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {
