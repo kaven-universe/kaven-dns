@@ -174,8 +174,9 @@ cp config.router.json /data/kaven-dns-data/config.json
 cp kaven-dns-stock-start.sh /data/kaven-dns-start.sh
 chmod 0755 /data/kaven-dns-start.sh
 /data/kaven-dns-start.sh
-grep -qF '@reboot /data/kaven-dns-start.sh' /etc/crontabs/root || \
-  printf '\n@reboot /data/kaven-dns-start.sh\n' >> /etc/crontabs/root
+sed -i '/@reboot \/data\/kaven-dns-start\.sh/d' /etc/crontabs/root
+grep -qF '* * * * * /data/kaven-dns-start.sh' /etc/crontabs/root || \
+  printf '\n* * * * * /data/kaven-dns-start.sh >/dev/null 2>&1\n' >> /etc/crontabs/root
 /etc/init.d/cron restart
 ```
 
@@ -200,9 +201,11 @@ Do not restart dnsmasq until the Kaven DNS listener is verified. If forwarding
 fails, restore the saved `noresolv` and `server` values, then commit and
 restart dnsmasq.
 
-The launcher and its `@reboot` cron entry start Kaven DNS after a router reboot;
-it also recreates the firmware-specific dnsmasq ECS include before restarting
-dnsmasq. The binary, launcher, and data all survive on `/data`.
+The launcher and its once-per-minute cron entry start Kaven DNS shortly after a
+router reboot; this is used instead of `@reboot` because the router's BusyBox
+cron does not execute `@reboot` jobs. It also recreates the firmware-specific
+dnsmasq ECS include before restarting dnsmasq. The binary, launcher, and data
+all survive on `/data`.
 
 ### Docker
 
