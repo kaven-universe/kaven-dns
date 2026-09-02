@@ -133,6 +133,72 @@ This bundle requires an arm64 or ARMv7 OpenWrt installation and root shell
 access. It cannot be installed through the standard Xiaomi stock-firmware Web
 interface.
 
+#### Example: router at 192.168.31.1
+
+For an ARMv7 router, build and upload the package from PowerShell. The `-O`
+option is required for Dropbear-based routers that do not provide an SFTP
+server:
+
+```powershell
+./scripts/build-router.ps1 -Architecture armv7
+scp -O -oHostKeyAlgorithms=+ssh-rsa -oPubkeyAcceptedAlgorithms=+ssh-rsa `
+  ./dist/kaven-dns_<version>_openwrt_armv7.tar.gz `
+  root@192.168.31.1:/tmp/kaven-dns.tar.gz
+ssh -oHostKeyAlgorithms=+ssh-rsa -oPubkeyAcceptedAlgorithms=+ssh-rsa `
+  root@192.168.31.1
+```
+
+After verifying the router's SSH host fingerprint, extract and install from
+the root shell:
+
+```sh
+rm -rf /tmp/kaven-dns-install
+mkdir -p /tmp/kaven-dns-install
+tar -xzf /tmp/kaven-dns.tar.gz -C /tmp/kaven-dns-install
+cd /tmp/kaven-dns-install/kaven-dns_<version>_openwrt_armv7
+sh install.sh
+```
+
+On the Xiaomi stock firmware tested at `192.168.31.1`, `/` is read-only
+squashfs and the standard installer fails when writing `/usr/bin`. The router
+reports `armv7l`, and its existing nginx also occupies Web port `8080`. That
+firmware is not a supported standard OpenWrt target. For a temporary manual
+test, place the binary and data under writable `/data`, then start it with a
+different Web port:
+
+```sh
+cp kaven-dns /data/kaven-dns
+chmod 0755 /data/kaven-dns
+mkdir -p /data/kaven-dns-data
+cp config.router.json /data/kaven-dns-data/config.json
+KAVEN_DATA_DIR=/data/kaven-dns-data KAVEN_WEB_PORT=18080 \
+  GOMEMLIMIT=64MiB GOMAXPROCS=2 /data/kaven-dns >/data/kaven-dns.log 2>&1 &
+```
+
+Verify with `ps`, `netstat -ln`, and `wget -qO- http://127.0.0.1:18080/`.
+On this router, configure Kaven DNS on `127.0.0.1:5330` to avoid confusion with
+standard mDNS port `5353`. Configure the router's
+dnsmasq to forward DNS queries to it:
+
+```sh
+uci -q get dhcp.@dnsmasq[0].noresolv
+uci -q get dhcp.@dnsmasq[0].server
+uci set dhcp.@dnsmasq[0].noresolv='1'
+uci -q del_list dhcp.@dnsmasq[0].server='127.0.0.1#5330'
+uci add_list dhcp.@dnsmasq[0].server='127.0.0.1#5330'
+uci set dhcp.@dnsmasq[0].add_subnet='32,128'
+uci commit dhcp
+/etc/init.d/dnsmasq restart
+nslookup openwrt.org 192.168.31.1
+```
+
+Do not restart dnsmasq until the Kaven DNS listener is verified. If forwarding
+fails, restore the saved `noresolv` and `server` values, then commit and
+restart dnsmasq.
+
+The `/data` binary and data survive reboot, but the manual process and init
+script require a firmware-supported startup hook to start automatically.
+
 ### Docker
 
 Prebuilt multi-architecture images (`linux/amd64` and `linux/arm64`) are published to Docker Hub and the GitHub Container Registry:
