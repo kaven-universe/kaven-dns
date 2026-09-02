@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+## [2.0.0] - 2026-09-02
+
 ### Changed
 
 - Replaced the Node.js application runtime with the self-contained Go server
@@ -11,6 +19,12 @@ All notable changes to this project are documented in this file.
   the embedded offline Web console
 - Docker images now run the Go binary directly as a non-root user
 - `VERSION` is now the canonical release version source
+
+### Fixed
+
+- Upstream DNS settings now have their own save button instead of being
+  submitted together with cache and query settings
+- Rule and rule-import dialogs no longer close when clicking outside the dialog
 
 ### Added
 
