@@ -171,8 +171,12 @@ cp kaven-dns /data/kaven-dns
 chmod 0755 /data/kaven-dns
 mkdir -p /data/kaven-dns-data
 cp config.router.json /data/kaven-dns-data/config.json
-KAVEN_DATA_DIR=/data/kaven-dns-data KAVEN_WEB_PORT=18080 \
-  GOMEMLIMIT=64MiB GOMAXPROCS=2 /data/kaven-dns >/data/kaven-dns.log 2>&1 &
+cp kaven-dns-stock-start.sh /data/kaven-dns-start.sh
+chmod 0755 /data/kaven-dns-start.sh
+/data/kaven-dns-start.sh
+grep -qF '@reboot /data/kaven-dns-start.sh' /etc/crontabs/root || \
+  printf '\n@reboot /data/kaven-dns-start.sh\n' >> /etc/crontabs/root
+/etc/init.d/cron restart
 ```
 
 Verify with `ps`, `netstat -ln`, and `wget -qO- http://127.0.0.1:18080/`.
@@ -196,8 +200,8 @@ Do not restart dnsmasq until the Kaven DNS listener is verified. If forwarding
 fails, restore the saved `noresolv` and `server` values, then commit and
 restart dnsmasq.
 
-The `/data` binary and data survive reboot, but the manual process and init
-script require a firmware-supported startup hook to start automatically.
+The launcher and its `@reboot` cron entry start Kaven DNS after a router reboot;
+the binary, launcher, and data all survive on `/data`.
 
 ### Docker
 
