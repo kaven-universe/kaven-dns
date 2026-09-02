@@ -70,7 +70,7 @@ func (s *Server) handle(writer dns.ResponseWriter, request *dns.Msg) {
 	response := new(dns.Msg)
 	response.SetReply(request)
 	response.RecursionAvailable = true
-	entry := history.Entry{Time: started.UnixMilli(), Client: clientIP(writer.RemoteAddr()), Source: "forward"}
+	entry := history.Entry{Time: started.UnixMilli(), Client: resolveClientIP(request, writer.RemoteAddr()), Source: "forward"}
 	if len(request.Question) == 0 || request.Question[0].Name == "" {
 		response.Rcode = dns.RcodeFormatError
 		_ = writer.WriteMsg(response)
@@ -111,6 +111,41 @@ func clientIP(address net.Addr) string {
 		return host
 	}
 	return address.String()
+}
+
+func resolveClientIP(request *dns.Msg, address net.Addr) string {
+	socketIP := clientIP(address)
+	ip := net.ParseIP(socketIP)
+	if ip == nil || !ip.IsLoopback() {
+		return socketIP
+	}
+	opt := request.IsEdns0()
+	if opt == nil {
+		return socketIP
+	}
+	for _, option := range opt.Option {
+		subnet, ok := option.(*dns.EDNS0_SUBNET)
+		if !ok || subnet.SourceScope != 0 {
+			continue
+		}
+		maxBits := uint8(0)
+		if subnet.Family == 1 {
+			maxBits = 32
+		} else if subnet.Family == 2 {
+			maxBits = 128
+		} else {
+			continue
+		}
+		if subnet.SourceNetmask < 1 || subnet.SourceNetmask > maxBits || subnet.Address == nil {
+			continue
+		}
+		value := subnet.Address.String()
+		if subnet.SourceNetmask < maxBits {
+			return fmt.Sprintf("%s/%d", value, subnet.SourceNetmask)
+		}
+		return value
+	}
+	return socketIP
 }
 
 func typeName(value uint16) string {

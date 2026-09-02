@@ -25,6 +25,14 @@ type Cache struct {
 	hits, misses uint64
 }
 
+type Info struct {
+	Size       int     `json:"size"`
+	MaxEntries int     `json:"maxEntries"`
+	Hits       uint64  `json:"hits"`
+	Misses     uint64  `json:"misses"`
+	HitRate    float64 `json:"hitRate"`
+}
+
 func New(max int) *Cache {
 	if max < 1 {
 		max = 1
@@ -83,6 +91,38 @@ func (c *Cache) Sweep() {
 }
 
 func (c *Cache) Len() int { c.mu.Lock(); defer c.mu.Unlock(); return len(c.items) }
+
+func (c *Cache) Flush() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	count := len(c.items)
+	clear(c.items)
+	c.order = nil
+	return count
+}
+
+func (c *Cache) Info() Info {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	total := c.hits + c.misses
+	rate := 0.0
+	if total > 0 {
+		rate = float64(c.hits) / float64(total) * 100
+	}
+	return Info{Size: len(c.items), MaxEntries: c.max, Hits: c.hits, Misses: c.misses, HitRate: rate}
+}
+
+func (c *Cache) SetMaxEntries(maxEntries int) {
+	if maxEntries < 1 {
+		maxEntries = 1
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.max = maxEntries
+	for len(c.items) > c.max {
+		c.remove(c.order[0])
+	}
+}
 
 func (c *Cache) touch(key string)  { c.removeOrder(key); c.order = append(c.order, key) }
 func (c *Cache) remove(key string) { delete(c.items, key); c.removeOrder(key) }

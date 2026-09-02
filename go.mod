@@ -2,7 +2,10 @@ module kaven.xyz/kaven/kaven-dns
 
 go 1.24
 
-require github.com/miekg/dns v1.1.68
+require (
+	github.com/miekg/dns v1.1.68
+	golang.org/x/crypto v0.38.0
+)
 
 require (
 	golang.org/x/mod v0.24.0 // indirect

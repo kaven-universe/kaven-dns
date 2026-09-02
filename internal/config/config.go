@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+
+	"kaven.xyz/kaven/kaven-dns/internal/persist"
 )
 
 const (
@@ -30,6 +33,36 @@ type Config struct {
 	CacheMaxEntries        int      `json:"cacheMaxEntries"`
 	SessionTTLHours        int      `json:"sessionTtlHours"`
 	PasswordHash           string   `json:"passwordHash"`
+}
+
+type Store struct {
+	mu    sync.RWMutex
+	path  string
+	value Config
+}
+
+func NewStore(path string, value Config) *Store { return &Store{path: path, value: value} }
+func (s *Store) Get() Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	value := s.value
+	value.Upstreams = append([]string(nil), value.Upstreams...)
+	return value
+}
+func (s *Store) Update(change func(*Config) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.value
+	next.Upstreams = append([]string(nil), next.Upstreams...)
+	if err := change(&next); err != nil {
+		return err
+	}
+	next.Sanitize()
+	if err := Save(s.path, next); err != nil {
+		return err
+	}
+	s.value = next
+	return nil
 }
 
 func Defaults() Config {
@@ -69,6 +102,11 @@ func Load(path string) (Config, error) {
 	applyEnvironment(&cfg)
 	cfg.Sanitize()
 	return cfg, nil
+}
+
+func Save(path string, cfg Config) error {
+	cfg.Sanitize()
+	return persist.WriteJSON(path, cfg)
 }
 
 func applyEnvironment(cfg *Config) {

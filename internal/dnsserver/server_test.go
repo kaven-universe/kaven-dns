@@ -59,3 +59,21 @@ func availablePort(t *testing.T) int {
 	}
 	return port
 }
+
+type testAddress string
+
+func (testAddress) Network() string  { return "udp" }
+func (a testAddress) String() string { return string(a) }
+func TestTrustsECSOnlyFromLoopback(t *testing.T) {
+	message := new(dns.Msg)
+	message.SetQuestion("example.com.", dns.TypeA)
+	option := &dns.OPT{Hdr: dns.RR_Header{Name: ".", Rrtype: dns.TypeOPT}}
+	option.Option = append(option.Option, &dns.EDNS0_SUBNET{Code: dns.EDNS0SUBNET, Family: 1, SourceNetmask: 24, Address: net.ParseIP("192.0.2.0")})
+	message.Extra = append(message.Extra, option)
+	if got := resolveClientIP(message, testAddress("127.0.0.1:1234")); got != "192.0.2.0/24" {
+		t.Fatalf("loopback ECS=%q", got)
+	}
+	if got := resolveClientIP(message, testAddress("198.51.100.2:1234")); got != "198.51.100.2" {
+		t.Fatalf("remote ECS trusted: %q", got)
+	}
+}

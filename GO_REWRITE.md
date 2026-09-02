@@ -2,7 +2,7 @@
 
 The Go implementation is being developed alongside the production Node.js application on the `rewrite/go` branch. The Node.js files remain the compatibility reference until the rewrite reaches feature parity.
 
-## First slice
+## Implemented
 
 - Compatible loading of `data/config.json` and `data/rules.json`
 - Fixed A, AAAA, and CNAME rules with existing precedence semantics
@@ -11,8 +11,21 @@ The Go implementation is being developed alongside the production Node.js applic
 - Time- and count-bounded query history (default: one day / 10,000 entries)
 - DNS listeners on both UDP and TCP
 - Clean signal-driven shutdown
+- Node-compatible scrypt and legacy password verification
+- Persisted bearer sessions with login throttling
+- Authenticated rules, configuration, query, cache, statistics, resolve-test, and shutdown APIs
+- Bounded SSE updates (maximum four consoles; five-second state interval)
+- Existing `queries.json` restoration and clean-shutdown persistence
+- Existing offline Vue console embedded in the executable
+- Atomic configuration, rule, session, and query snapshot writes
 
-The Web API, authentication, persistence, SSE, and embedded Web console remain to be ported.
+## Remaining compatibility work
+
+- Live DNS and Web listener moves when their configured ports or bind addresses change
+- Console/operation log capture
+- Remote stable-version update checks
+- Full bilingual validation parity for every API error
+- Automated visual checks for Chinese, English, desktop, and narrow mobile layouts
 
 ## Router build target
 
