@@ -146,6 +146,7 @@ func TestMovesWebListenerAndRollsBackBusyTarget(t *testing.T) {
 	second := availableHTTPPort(t)
 	cfg := config.Defaults()
 	cfg.WebPort = first
+	cfg.WebBindAddress = "127.0.0.1"
 	hash, _ := auth.HashPassword("correct")
 	cfg.PasswordHash = hash
 	cfgStore := config.NewStore(filepath.Join(dir, "config.json"), cfg)
@@ -174,7 +175,7 @@ func TestMovesWebListenerAndRollsBackBusyTarget(t *testing.T) {
 	if current.status != 200 {
 		t.Fatalf("new listener=%d %s", current.status, current.body)
 	}
-	busy, err := net.Listen("tcp", ":0")
+	busy, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
