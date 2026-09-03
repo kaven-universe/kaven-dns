@@ -246,6 +246,20 @@ docker run -d \
 
 Select DNS port `5330` in the first-run setup screen as well. The environment variable applies the startup override, while the setup selection is saved in the persistent configuration.
 
+#### Upgrading from 1.x
+
+The 1.x Node.js image ran as the `node` user (UID 1000); the Go image runs as `kaven` (UID 10001). Recreating an old container in place therefore fails with `unable to find user node: no matching entries in passwd file`, because the user override is stored on the container, not in the image.
+
+Clear the explicit user setting on the container (leave it empty so the image default applies, or set `10001:10001`), then recreate it. With Compose, delete any `user:` entry from the service and run `docker compose up -d --force-recreate`. With plain Docker, remove and recreate the container; the named volume keeps the data.
+
+The data directory path is unchanged (`/app/data`), but existing files are still owned by UID 1000, so the new container cannot write to them. Fix the ownership once before starting:
+
+```bash
+docker run --rm -v kaven-dns-data:/app/data alpine:3.22 chown -R 10001:10001 /app/data
+```
+
+Replace `kaven-dns-data` with your volume name or bind-mount host path. Configuration, rules, sessions, and Queries history are then read as usual.
+
 To build the image locally:
 
 ```bash
