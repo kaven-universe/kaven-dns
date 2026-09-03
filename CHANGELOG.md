@@ -10,6 +10,18 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+## [2.0.1] - 2026-09-03
+
+### Changed
+
+- Improved the responsive layout and display preferences in the Web console
+- Added Docker 1.x upgrade guidance for the non-root container user change
+
+### Fixed
+
+- Release publishing now resolves the GitHub repository correctly
+- Web listener tests now bind only to loopback addresses
+
 ## [2.0.0] - 2026-09-02
 
 ### Changed
