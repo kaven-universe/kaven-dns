@@ -1123,6 +1123,18 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 <div class="hint">{{ t('settings.queryRetentionHint') }}</div>
                 <div class="hint adjusted" v-if="fieldAdjusted.queryRetentionDays">{{ t('settings.adjustedTo', {value: settings.queryRetentionDays}) }}</div>
               </div>
+              <div class="form-row">
+                <label>{{ t('settings.queryHistoryMaxEntries') }}</label>
+                <input type="number" v-model.number="settings.queryHistoryMaxEntries" :class="{'invalid-adjusted': fieldAdjusted.queryHistoryMaxEntries}">
+                <div class="hint">{{ t('settings.queryHistoryMaxEntriesHint') }}</div>
+                <div class="hint adjusted" v-if="fieldAdjusted.queryHistoryMaxEntries">{{ t('settings.adjustedTo', {value: settings.queryHistoryMaxEntries}) }}</div>
+              </div>
+              <div class="form-row">
+                <label>{{ t('settings.cacheMaxEntries') }}</label>
+                <input type="number" v-model.number="settings.cacheMaxEntries" :class="{'invalid-adjusted': fieldAdjusted.cacheMaxEntries}">
+                <div class="hint">{{ t('settings.cacheMaxEntriesHint') }}</div>
+                <div class="hint adjusted" v-if="fieldAdjusted.cacheMaxEntries">{{ t('settings.adjustedTo', {value: settings.cacheMaxEntries}) }}</div>
+              </div>
               <div class="form-row settings-span-all">
                 <label>{{ t('settings.ttlRange') }}</label>
                 <div style="display:flex;gap:8px">
@@ -1674,6 +1686,10 @@ const I18N = {
     'settings.ttlHint': 'Actual cache time = the answer\'s minimum TTL, clamped to this range',
     'settings.queryRetentionDays': 'Query retention (days)',
     'settings.queryRetentionHint': 'Queries older than this are dropped automatically; 0 disables time-based trimming (a safety ceiling on total entries always applies)',
+    'settings.queryHistoryMaxEntries': 'Maximum retained queries',
+    'settings.queryHistoryMaxEntriesHint': 'Hard limit: 100-1,000,000 entries; oldest queries are dropped first',
+    'settings.cacheMaxEntries': 'Maximum DNS cache entries',
+    'settings.cacheMaxEntriesHint': 'Hard limit: 100-100,000 entries; least recently used entries are evicted first',
     'settings.saveSettings': 'Save Settings',
     'settings.saving': 'Saving...',
     'settings.portsTitle': 'Service Ports',
@@ -1984,6 +2000,10 @@ const I18N = {
     'settings.ttlHint': '实际缓存时长 = 应答最小 TTL，并夹在该区间内',
     'settings.queryRetentionDays': '查询保留天数',
     'settings.queryRetentionHint': '超过该天数的查询会自动清除；设为 0 可关闭按时间清理（仍会有内部条数安全上限）',
+    'settings.queryHistoryMaxEntries': '最多保留查询条数',
+    'settings.queryHistoryMaxEntriesHint': '硬上限：100-1,000,000 条；超出时优先清除最早的查询',
+    'settings.cacheMaxEntries': 'DNS 缓存最大条数',
+    'settings.cacheMaxEntriesHint': '硬上限：100-100,000 条；超出时优先淘汰最久未使用的缓存',
     'settings.saveSettings': '保存设置',
     'settings.saving': '保存中...',
     'settings.portsTitle': '服务端口',
@@ -2112,7 +2132,7 @@ const app = createApp({
       confirmBox: { visible: false, text: '', action: null, danger: false },
       settings: {
         upstreams: [], forwardTimeoutMs: 3000,
-        ttlMin: 10, ttlMax: 3600, queryRetentionDays: 7, dnsPort: 53, webPort: 8080,
+        ttlMin: 10, ttlMax: 3600, queryRetentionDays: 7, queryHistoryMaxEntries: 10000, cacheMaxEntries: 2000, dnsPort: 53, webPort: 8080,
         bindAddress: '0.0.0.0', webBindAddress: '0.0.0.0', sessionTtlHours: 24,
       },
       savingSettings: false, savingPw: false, resettingQueries: false,
@@ -3042,6 +3062,8 @@ const app = createApp({
           forwardTimeoutMs: c.forwardTimeoutMs,
           ttlMin: c.ttlMin, ttlMax: c.ttlMax,
           queryRetentionDays: c.queryRetentionDays,
+          queryHistoryMaxEntries: c.queryHistoryMaxEntries,
+          cacheMaxEntries: c.cacheMaxEntries,
           dnsPort: c.dnsPort, webPort: c.webPort, bindAddress: c.bindAddress || '0.0.0.0',
           webBindAddress: c.webBindAddress || '0.0.0.0',
           sessionTtlHours: c.sessionTtlHours,
@@ -3060,6 +3082,8 @@ const app = createApp({
           forwardTimeoutMs: this.settings.forwardTimeoutMs,
           ttlMin: this.settings.ttlMin, ttlMax: this.settings.ttlMax,
           queryRetentionDays: this.settings.queryRetentionDays,
+          queryHistoryMaxEntries: this.settings.queryHistoryMaxEntries,
+          cacheMaxEntries: this.settings.cacheMaxEntries,
           dnsPort: this.settings.dnsPort, webPort: this.settings.webPort,
           bindAddress: this.settings.bindAddress,
           webBindAddress: this.settings.webBindAddress, sessionTtlHours: this.settings.sessionTtlHours,
