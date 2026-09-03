@@ -331,34 +331,39 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 
 /* Settings */
 .settings-grid {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-areas: "upstreams ports" "query-policy security" "maintenance maintenance";
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px; align-items: stretch;
 }
-.settings-grid > .card { display: flex; flex-direction: column; min-width: 0; margin-bottom: 0; }
-.settings-grid > .card > .btn { align-self: flex-start; margin-top: auto; }
-.settings-upstreams { grid-area: upstreams; }
-.settings-ports { grid-area: ports; }
-.settings-query-policy { grid-area: query-policy; }
-.settings-security { grid-area: security; }
-.settings-maintenance { grid-area: maintenance; overflow: hidden; }
+.settings-grid > .card { display: flex; flex-direction: column; min-width: 0; min-height: 310px; margin-bottom: 0; }
+.settings-grid > .card h3 { min-height: 24px; margin-bottom: 14px; }
+.settings-card-body { flex: 1; min-width: 0; }
+.settings-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: auto; padding-top: 14px; }
+.settings-card-actions .btn { white-space: nowrap; }
+.settings-card-description { margin: 0; color: var(--muted); font-size: 12px; }
+.settings-card-status { padding: 12px 14px; border-radius: 8px; background: #f8fafc; }
+.settings-grid .form-row > input, .settings-grid .form-row > select { width: 100%; }
+.display-time-setting { width: 100%; }
+.display-setting-title { margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.display-setting-hint { margin: -3px 0 12px; color: var(--muted); font-size: 11px; }
+.column-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }
+.column-option { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13px; }
+.column-option input { flex: none; width: 16px; height: 16px; padding: 0; accent-color: var(--primary); }
+.column-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table-column-menu { position: relative; flex: none; }
+.table-column-menu summary { display: inline-flex; align-items: center; list-style: none; cursor: pointer; user-select: none; }
+.table-column-menu summary::-webkit-details-marker { display: none; }
+.table-column-menu summary:focus-visible { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,.12); outline: none; }
+.table-column-menu-panel {
+  position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: 330px; max-width: calc(100vw - 40px);
+  padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff;
+  box-shadow: 0 8px 24px rgba(15,23,42,.15);
+}
+.table-column-menu.align-right .table-column-menu-panel { right: 0; left: auto; }
+.table-column-menu-panel .column-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .settings-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
 .settings-endpoint-grid { grid-template-columns: minmax(140px, .65fr) minmax(0, 1.35fr); }
 .settings-password-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
 .settings-span-all { grid-column: 1 / -1; }
-.settings-maintenance-grid {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0 -20px -18px; border-top: 1px solid var(--border);
-}
-.settings-maintenance-item {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
-  gap: 16px; min-width: 0; padding: 16px 20px;
-}
-.settings-maintenance-item + .settings-maintenance-item { border-left: 1px solid var(--border); }
-.settings-maintenance-item h4 { margin: 0 0 2px; font-size: 13px; }
-.settings-maintenance-item p { margin: 0; color: var(--muted); font-size: 12px; }
-.settings-maintenance-item .btn { white-space: nowrap; }
-.settings-maintenance-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .upstream-row { display: flex; gap: 8px; margin-bottom: 8px; }
 .upstream-row input { flex: 1; }
 .empty { color: var(--muted); text-align: center; padding: 24px 0; }
@@ -385,19 +390,15 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none;
 }
 .exited-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 999; }
-@media (max-width: 1200px) {
+@media (max-width: 1280px) {
+  .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .query-overview-grid { grid-template-columns: 1fr 1fr; }
   .query-kpis { grid-column: 1 / -1; border-bottom: 1px solid var(--border); }
   .query-detail:first-of-type { border-left: 0; }
   .analysis-grid { grid-template-columns: 1fr 1fr; }
   .query-side-grid { grid-template-columns: 1fr; }
-}
-@media (max-width: 900px) {
-  .settings-grid {
-    grid-template-columns: 1fr;
-    grid-template-areas: "upstreams" "ports" "query-policy" "security" "maintenance";
-  }
+  .stacked-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
   header {
@@ -422,14 +423,14 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
   .query-detail { padding: 14px 16px; border-left: 0; border-top: 1px solid var(--border); }
   .analysis-grid { grid-template-columns: 1fr; }
   .query-side-grid { grid-template-columns: 1fr; }
+  .stacked-cards { grid-template-columns: 1fr; }
   .analysis-head { flex-direction: column; }
   .segmented { width: 100%; }
   .segmented button { flex: 1; }
-  .settings-field-grid, .settings-endpoint-grid, .settings-password-grid, .settings-maintenance-grid { grid-template-columns: 1fr; }
-  .settings-maintenance-item { grid-template-columns: 1fr; gap: 10px; }
-  .settings-maintenance-item + .settings-maintenance-item { border-left: 0; border-top: 1px solid var(--border); }
-  .settings-maintenance-item .btn { justify-self: start; }
-  .settings-maintenance-actions { justify-content: flex-start; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .settings-grid > .card { min-height: 0; }
+  .settings-field-grid, .settings-endpoint-grid, .settings-password-grid { grid-template-columns: 1fr; }
+  .column-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .site-footer { align-items: flex-start; flex-direction: column; gap: 4px; }
 }
 </style>
@@ -682,25 +683,36 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
             <div class="toolbar">
               <h3 style="margin:0">{{ t('query.title') }}</h3>
               <span class="grow"></span>
+              <details class="table-column-menu align-right">
+                <summary class="btn secondary sm">{{ t('table.columns') }}</summary>
+                <div class="table-column-menu-panel">
+                  <div class="column-picker">
+                    <label v-for="column in queryColumnOptions" :key="column.key" class="column-option">
+                      <input type="checkbox" v-model="displayPreferences.tableColumns.dashboard[column.key]" :disabled="displayPreferences.tableColumns.dashboard[column.key] && visibleQueryColumnCount('dashboard') === 1">
+                      <span>{{ column.label }}</span>
+                    </label>
+                  </div>
+                </div>
+              </details>
               <span class="live-dot" :class="{on: liveConnected && autoRefresh}" :title="liveStatusTitle"></span>
             </div>
             <div class="tbl-scroll">
               <table>
                 <thead>
-                  <tr><th>{{ t('query.time') }}</th><th>{{ t('query.client') }}</th><th>{{ t('query.domain') }}</th><th>{{ t('query.type') }}</th><th>{{ t('query.source') }}</th><th>{{ t('query.ruleUpstream') }}</th><th>{{ t('query.result') }}</th><th>{{ t('query.status') }}</th><th>{{ t('query.latency') }}</th></tr>
+                  <tr><th v-if="isQueryColumnVisible('dashboard','time')">{{ t('query.time') }}</th><th v-if="isQueryColumnVisible('dashboard','client')">{{ t('query.client') }}</th><th v-if="isQueryColumnVisible('dashboard','domain')">{{ t('query.domain') }}</th><th v-if="isQueryColumnVisible('dashboard','type')">{{ t('query.type') }}</th><th v-if="isQueryColumnVisible('dashboard','source')">{{ t('query.source') }}</th><th v-if="isQueryColumnVisible('dashboard','rule')">{{ t('query.ruleUpstream') }}</th><th v-if="isQueryColumnVisible('dashboard','result')">{{ t('query.result') }}</th><th v-if="isQueryColumnVisible('dashboard','status')">{{ t('query.status') }}</th><th v-if="isQueryColumnVisible('dashboard','latency')">{{ t('query.latency') }}</th></tr>
                 </thead>
                 <tbody>
-                  <tr v-if="!recentQueries.length"><td colspan="9" class="empty">{{ t('query.empty') }}</td></tr>
+                  <tr v-if="!recentQueries.length"><td :colspan="visibleQueryColumnCount('dashboard')" class="empty">{{ t('query.empty') }}</td></tr>
                   <tr v-for="(query, i) in recentQueries" :key="query.seq || i">
-                    <td>{{ fmtTime(query.t) }}</td>
-                    <td>{{ query.client }}</td>
-                    <td class="wrap">{{ query.domain }}</td>
-                    <td>{{ query.type }}</td>
-                    <td><span class="badge" :class="query.source">{{ sourceText(query.source) }}</span></td>
-                    <td class="wrap">{{ query.rule || query.upstream || (query.error ? query.error : '-') }}</td>
-                    <td class="wrap">{{ query.answers || '-' }}</td>
-                    <td><span class="badge" :class="query.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(query.rcode) }}</span></td>
-                    <td>{{ query.latencyMs }} ms</td>
+                    <td v-if="isQueryColumnVisible('dashboard','time')">{{ fmtTime(query.t) }}</td>
+                    <td v-if="isQueryColumnVisible('dashboard','client')">{{ query.client }}</td>
+                    <td v-if="isQueryColumnVisible('dashboard','domain')" class="wrap">{{ query.domain }}</td>
+                    <td v-if="isQueryColumnVisible('dashboard','type')">{{ query.type }}</td>
+                    <td v-if="isQueryColumnVisible('dashboard','source')"><span class="badge" :class="query.source">{{ sourceText(query.source) }}</span></td>
+                    <td v-if="isQueryColumnVisible('dashboard','rule')" class="wrap">{{ query.rule || query.upstream || (query.error ? query.error : '-') }}</td>
+                    <td v-if="isQueryColumnVisible('dashboard','result')" class="wrap">{{ query.answers || '-' }}</td>
+                    <td v-if="isQueryColumnVisible('dashboard','status')"><span class="badge" :class="query.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(query.rcode) }}</span></td>
+                    <td v-if="isQueryColumnVisible('dashboard','latency')">{{ query.latencyMs }} ms</td>
                   </tr>
                 </tbody>
               </table>
@@ -807,6 +819,17 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
         <div class="card">
           <div class="toolbar">
             <h3 style="margin:0">{{ t('nav.queries') }}</h3>
+            <details class="table-column-menu">
+              <summary class="btn secondary sm">{{ t('table.columns') }}</summary>
+              <div class="table-column-menu-panel">
+                <div class="column-picker">
+                  <label v-for="column in queryColumnOptions" :key="column.key" class="column-option">
+                    <input type="checkbox" v-model="displayPreferences.tableColumns.queries[column.key]" :disabled="displayPreferences.tableColumns.queries[column.key] && visibleQueryColumnCount('queries') === 1">
+                    <span>{{ column.label }}</span>
+                  </label>
+                </div>
+              </div>
+            </details>
             <span class="grow"></span>
             <select v-model="queryFilter.rangePreset" :aria-label="t('query.timeRange')">
               <option value="">{{ t('query.rangeAll') }}</option>
@@ -834,47 +857,47 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
             <table>
               <thead>
                 <tr>
-                  <th class="sortable" @click="toggleSort('queries','time')">{{ t('query.time') }}{{ sortIndicator('queries','time') }}</th>
-                  <th class="sortable" @click="toggleSort('queries','client')">
+                  <th v-if="isQueryColumnVisible('queries','time')" class="sortable" @click="toggleSort('queries','time')">{{ t('query.time') }}{{ sortIndicator('queries','time') }}</th>
+                  <th v-if="isQueryColumnVisible('queries','client')" class="sortable" @click="toggleSort('queries','client')">
                     {{ t('query.client') }}{{ sortIndicator('queries','client') }}
                     <col-filter v-model="queryFilter.client" :options="clientFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('queries','domain')">
+                  <th v-if="isQueryColumnVisible('queries','domain')" class="sortable" @click="toggleSort('queries','domain')">
                     {{ t('query.domain') }}{{ sortIndicator('queries','domain') }}
                     <col-filter v-model="queryFilter.domain" :options="domainFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('queries','type')">
+                  <th v-if="isQueryColumnVisible('queries','type')" class="sortable" @click="toggleSort('queries','type')">
                     {{ t('query.type') }}{{ sortIndicator('queries','type') }}
                     <col-filter v-model="queryFilter.type" :options="typeFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('queries','source')">
+                  <th v-if="isQueryColumnVisible('queries','source')" class="sortable" @click="toggleSort('queries','source')">
                     {{ t('query.source') }}{{ sortIndicator('queries','source') }}
                     <col-filter v-model="queryFilter.source" :options="sourceFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('queries','rule')">
+                  <th v-if="isQueryColumnVisible('queries','rule')" class="sortable" @click="toggleSort('queries','rule')">
                     {{ t('query.ruleUpstream') }}{{ sortIndicator('queries','rule') }}
                     <col-filter v-model="queryFilter.rule" :options="ruleFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('queries','result')">{{ t('query.result') }}{{ sortIndicator('queries','result') }}</th>
-                  <th class="sortable" @click="toggleSort('queries','status')">
+                  <th v-if="isQueryColumnVisible('queries','result')" class="sortable" @click="toggleSort('queries','result')">{{ t('query.result') }}{{ sortIndicator('queries','result') }}</th>
+                  <th v-if="isQueryColumnVisible('queries','status')" class="sortable" @click="toggleSort('queries','status')">
                     {{ t('query.status') }}{{ sortIndicator('queries','status') }}
                     <col-filter v-model="queryFilter.status" :options="statusFilterOptions" :reset-label="t('filter.reset')" :confirm-label="t('filter.confirm')"></col-filter>
                   </th>
-                  <th class="sortable" @click="toggleSort('queries','latency')">{{ t('query.latency') }}{{ sortIndicator('queries','latency') }}</th>
+                  <th v-if="isQueryColumnVisible('queries','latency')" class="sortable" @click="toggleSort('queries','latency')">{{ t('query.latency') }}{{ sortIndicator('queries','latency') }}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="!sortedVisibleQueries.length"><td colspan="9" class="empty">{{ t('query.empty') }}</td></tr>
+                <tr v-if="!sortedVisibleQueries.length"><td :colspan="visibleQueryColumnCount('queries')" class="empty">{{ t('query.empty') }}</td></tr>
                 <tr v-for="(query, i) in sortedVisibleQueries" :key="query.seq || i">
-                  <td>{{ fmtTime(query.t) }}</td>
-                  <td>{{ query.client }}</td>
-                  <td class="wrap">{{ query.domain }}</td>
-                  <td>{{ query.type }}</td>
-                  <td><span class="badge" :class="query.source">{{ sourceText(query.source) }}</span></td>
-                  <td class="wrap">{{ query.rule || query.upstream || (query.error ? query.error : '-') }}</td>
-                  <td class="wrap">{{ query.answers || '-' }}</td>
-                  <td><span class="badge" :class="query.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(query.rcode) }}</span></td>
-                  <td>{{ query.latencyMs }} ms</td>
+                  <td v-if="isQueryColumnVisible('queries','time')">{{ fmtTime(query.t) }}</td>
+                  <td v-if="isQueryColumnVisible('queries','client')">{{ query.client }}</td>
+                  <td v-if="isQueryColumnVisible('queries','domain')" class="wrap">{{ query.domain }}</td>
+                  <td v-if="isQueryColumnVisible('queries','type')">{{ query.type }}</td>
+                  <td v-if="isQueryColumnVisible('queries','source')"><span class="badge" :class="query.source">{{ sourceText(query.source) }}</span></td>
+                  <td v-if="isQueryColumnVisible('queries','rule')" class="wrap">{{ query.rule || query.upstream || (query.error ? query.error : '-') }}</td>
+                  <td v-if="isQueryColumnVisible('queries','result')" class="wrap">{{ query.answers || '-' }}</td>
+                  <td v-if="isQueryColumnVisible('queries','status')"><span class="badge" :class="query.rcode === 0 ? 'ok' : 'fail'">{{ rcodeText(query.rcode) }}</span></td>
+                  <td v-if="isQueryColumnVisible('queries','latency')">{{ query.latencyMs }} ms</td>
                 </tr>
               </tbody>
             </table>
@@ -1038,17 +1061,21 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
         <div class="settings-grid">
           <div class="card settings-upstreams">
             <h3>{{ t('settings.upstreamsTitle') }}</h3>
-            <div v-for="(u, i) in settings.upstreams" :key="i" class="upstream-row">
-              <input v-model="settings.upstreams[i]" :placeholder="t('settings.upstreamPlaceholder')">
-              <button class="btn danger sm" @click="settings.upstreams.splice(i, 1)" :disabled="settings.upstreams.length <= 1">{{ t('settings.remove') }}</button>
+            <div class="settings-card-body">
+              <div v-for="(u, i) in settings.upstreams" :key="i" class="upstream-row">
+                <input v-model="settings.upstreams[i]" :placeholder="t('settings.upstreamPlaceholder')">
+                <button class="btn danger sm" @click="settings.upstreams.splice(i, 1)" :disabled="settings.upstreams.length <= 1">{{ t('settings.remove') }}</button>
+              </div>
             </div>
-            <button class="btn secondary sm" @click="settings.upstreams.push('')">{{ t('settings.addUpstream') }}</button>
-            <button class="btn" :disabled="savingSettings" @click="saveUpstreams">{{ savingSettings ? t('settings.saving') : t('settings.saveUpstreams') }}</button>
+            <div class="settings-card-actions">
+              <button class="btn secondary sm" @click="settings.upstreams.push('')">{{ t('settings.addUpstream') }}</button>
+              <button class="btn" :disabled="savingSettings" @click="saveUpstreams">{{ savingSettings ? t('settings.saving') : t('settings.saveUpstreams') }}</button>
+            </div>
           </div>
 
           <div class="card settings-ports">
             <h3>{{ t('settings.portsTitle') }}<span style="font-weight:400;font-size:12px;color:var(--muted)">{{ t('settings.portsHint') }}</span></h3>
-            <div class="settings-field-grid settings-endpoint-grid">
+            <div class="settings-card-body settings-field-grid settings-endpoint-grid">
               <div class="form-row">
                 <label>{{ t('settings.dnsPort') }}</label>
                 <input type="number" v-model.number="settings.dnsPort" :class="{'invalid-error': dnsNotApplied}">
@@ -1071,7 +1098,9 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 <div class="hint">{{ t('settings.webBindAddressHint') }}</div>
               </div>
             </div>
-            <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.savePorts') }}</button>
+            <div class="settings-card-actions">
+              <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.savePorts') }}</button>
+            </div>
           </div>
 
           <datalist id="settingsLocalIps">
@@ -1082,7 +1111,7 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 
           <div class="card settings-query-policy">
             <h3>{{ t('settings.cacheQueries') }}</h3>
-            <div class="settings-field-grid">
+            <div class="settings-card-body settings-field-grid">
               <div class="form-row">
                 <label>{{ t('settings.forwardTimeout') }}</label>
                 <input type="number" v-model.number="settings.forwardTimeoutMs" :class="{'invalid-adjusted': fieldAdjusted.forwardTimeoutMs}">
@@ -1104,57 +1133,106 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
                 <div class="hint adjusted" v-if="fieldAdjusted.ttlMin || fieldAdjusted.ttlMax">{{ t('settings.adjustedTo', {value: settings.ttlMin + ' / ' + settings.ttlMax}) }}</div>
               </div>
             </div>
-            <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.saveSettings') }}</button>
+            <div class="settings-card-actions">
+              <button class="btn" :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? t('settings.saving') : t('settings.saveSettings') }}</button>
+            </div>
           </div>
 
           <div class="card settings-security">
             <h3>{{ t('settings.security') }}</h3>
-            <div class="form-row">
-              <label>{{ t('settings.sessionTtl') }}</label>
-              <input type="number" v-model.number="settings.sessionTtlHours">
-              <div class="hint">{{ t('settings.sessionTtlHint') }}</div>
+            <div class="settings-card-body">
+              <div class="form-row">
+                <label>{{ t('settings.sessionTtl') }}</label>
+                <input type="number" v-model.number="settings.sessionTtlHours">
+                <div class="hint">{{ t('settings.sessionTtlHint') }}</div>
+              </div>
+              <div class="settings-password-grid">
+                <div class="form-row settings-span-all"><label>{{ t('settings.currentPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.current"></div>
+                <div class="form-row"><label>{{ t('settings.newPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.next"></div>
+                <div class="form-row"><label>{{ t('settings.confirmPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.confirm"></div>
+              </div>
             </div>
-            <div class="settings-password-grid">
-              <div class="form-row settings-span-all"><label>{{ t('settings.currentPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.current"></div>
-              <div class="form-row"><label>{{ t('settings.newPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.next"></div>
-              <div class="form-row"><label>{{ t('settings.confirmPassword') }}</label><input type="password" autocomplete="new-password" v-model="pwForm.confirm"></div>
+            <div class="settings-card-actions">
+              <button class="btn" :disabled="savingPw" @click="changePassword">{{ savingPw ? t('settings.submitting') : t('settings.changePassword') }}</button>
             </div>
-            <button class="btn" :disabled="savingPw" @click="changePassword">{{ savingPw ? t('settings.submitting') : t('settings.changePassword') }}</button>
           </div>
 
-          <div class="card settings-maintenance">
-            <h3>{{ t('settings.maintenance') }}</h3>
-            <div class="settings-maintenance-grid">
-              <div class="settings-maintenance-item">
-                <div>
-                  <h4>{{ t('settings.cacheMgmt') }}</h4>
-                  <p>{{ t('settings.cacheInfo', {entries: cacheInfo.size ?? 0, hits: cacheInfo.hits ?? 0, rate: fmtMetric(cacheInfo.hitRate)}) }}</p>
-                </div>
-                <button class="btn danger" @click="flushCache">{{ t('settings.flushCache') }}</button>
+          <div class="card settings-display">
+            <h3>{{ t('settings.display') }}</h3>
+            <div class="settings-card-body display-time-setting">
+              <div class="display-setting-hint">{{ t('settings.displayBrowserHint') }}</div>
+              <div class="display-setting-title">{{ t('settings.timeFormat') }}</div>
+              <select v-model="displayPreferences.timeFormat" style="width:100%">
+                <optgroup :label="t('settings.timeFormatGroupDateTime')">
+                  <option value="full">{{ t('settings.timeFormatFull') }}</option>
+                  <option value="seconds">{{ t('settings.timeFormatSeconds') }}</option>
+                  <option value="minutes">{{ t('settings.timeFormatMinutes') }}</option>
+                  <option value="twelve">{{ t('settings.timeFormatTwelve') }}</option>
+                  <option value="date">{{ t('settings.timeFormatDate') }}</option>
+                </optgroup>
+                <optgroup :label="t('settings.timeFormatGroupTimeOnly')">
+                  <option value="timeFull">{{ t('settings.timeFormatTimeFull') }}</option>
+                  <option value="timeSeconds">{{ t('settings.timeFormatTimeSeconds') }}</option>
+                  <option value="timeMinutes">{{ t('settings.timeFormatTimeMinutes') }}</option>
+                  <option value="timeTwelve">{{ t('settings.timeFormatTimeTwelve') }}</option>
+                </optgroup>
+                <optgroup :label="t('settings.timeFormatGroupOther')">
+                  <option value="iso">{{ t('settings.timeFormatISO') }}</option>
+                  <option value="custom">{{ t('settings.timeFormatCustom') }}</option>
+                </optgroup>
+              </select>
+              <div v-if="displayPreferences.timeFormat === 'custom'" class="form-row" style="margin-top:10px">
+                <input v-model="displayPreferences.customTimeFormat" :placeholder="t('settings.timeFormatCustomPlaceholder')" style="width:100%">
+                <div class="hint">{{ t('settings.timeFormatTokens') }}</div>
               </div>
-              <div class="settings-maintenance-item">
-                <div>
-                  <h4>{{ t('settings.queries') }}</h4>
-                  <p>{{ t('settings.queriesInfo', {n: analytics.retainedQueries ?? 0}) }}</p>
-                </div>
-                <button class="btn danger" :disabled="resettingQueries" @click="resetQueries">
-                  {{ resettingQueries ? t('settings.resettingQueries') : t('settings.resetQueries') }}
-                </button>
+              <div class="display-setting-hint">{{ t('settings.timeFormatHint') }}</div>
+              <div class="test-result" style="margin-top:0">{{ t('settings.timeFormatPreview') }} {{ fmtTime(displayPreviewTime) }}</div>
+            </div>
+            <div class="settings-card-actions">
+              <button class="btn secondary sm" @click="resetDisplayPreferences">{{ t('settings.displayReset') }}</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>{{ t('settings.cacheMgmt') }}</h3>
+            <div class="settings-card-body">
+              <div class="settings-card-status">
+                <p class="settings-card-description">{{ t('settings.cacheInfo', {entries: cacheInfo.size ?? 0, hits: cacheInfo.hits ?? 0, rate: fmtMetric(cacheInfo.hitRate)}) }}</p>
               </div>
-              <div class="settings-maintenance-item">
-                <div>
-                  <h4>{{ t('settings.updates') }}</h4>
-                  <p v-if="updateResult && updateResult.updateAvailable">{{ t('settings.updateAvailable', {latest: updateResult.latestVersion, current: updateResult.currentVersion}) }}</p>
-                  <p v-else-if="updateResult">{{ t('settings.upToDate', {current: updateResult.currentVersion}) }}</p>
-                  <p v-else>{{ t('settings.updateIdle') }}</p>
-                </div>
-                <div class="settings-maintenance-actions">
-                  <a v-if="updateResult && updateResult.updateAvailable" class="btn secondary" :href="updateResult.url" target="_blank" rel="noopener noreferrer">{{ t('settings.viewUpdate') }}</a>
-                  <button class="btn secondary" :disabled="checkingUpdates" @click="checkForUpdates">
-                    {{ checkingUpdates ? t('settings.checkingUpdates') : t('settings.checkUpdates') }}
-                  </button>
-                </div>
+            </div>
+            <div class="settings-card-actions">
+              <button class="btn danger" @click="flushCache">{{ t('settings.flushCache') }}</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>{{ t('settings.queries') }}</h3>
+            <div class="settings-card-body">
+              <div class="settings-card-status">
+                <p class="settings-card-description">{{ t('settings.queriesInfo', {n: analytics.retainedQueries ?? 0}) }}</p>
               </div>
+            </div>
+            <div class="settings-card-actions">
+              <button class="btn danger" :disabled="resettingQueries" @click="resetQueries">
+                {{ resettingQueries ? t('settings.resettingQueries') : t('settings.resetQueries') }}
+              </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>{{ t('settings.updates') }}</h3>
+            <div class="settings-card-body">
+              <div class="settings-card-status">
+                <p v-if="updateResult && updateResult.updateAvailable" class="settings-card-description">{{ t('settings.updateAvailable', {latest: updateResult.latestVersion, current: updateResult.currentVersion}) }}</p>
+                <p v-else-if="updateResult" class="settings-card-description">{{ t('settings.upToDate', {current: updateResult.currentVersion}) }}</p>
+                <p v-else class="settings-card-description">{{ t('settings.updateIdle') }}</p>
+              </div>
+            </div>
+            <div class="settings-card-actions">
+              <a v-if="updateResult && updateResult.updateAvailable" class="btn secondary" :href="updateResult.url" target="_blank" rel="noopener noreferrer">{{ t('settings.viewUpdate') }}</a>
+              <button class="btn secondary" :disabled="checkingUpdates" @click="checkForUpdates">
+                {{ checkingUpdates ? t('settings.checkingUpdates') : t('settings.checkUpdates') }}
+              </button>
             </div>
           </div>
         </div>
@@ -1274,6 +1352,49 @@ td.wrap { white-space: normal; word-break: break-all; max-width: min(38vw, 640px
 
 <script>
 const { createApp } = Vue;
+
+const DISPLAY_PREFERENCES_KEY = 'kaven_dns_display_preferences';
+const QUERY_COLUMN_KEYS = ['time', 'client', 'domain', 'type', 'source', 'rule', 'result', 'status', 'latency'];
+const TIME_FORMATS = [
+  'full', 'seconds', 'minutes', 'twelve', 'date',
+  'timeFull', 'timeSeconds', 'timeMinutes', 'timeTwelve',
+  'iso', 'custom',
+];
+
+function allQueryColumnsVisible() {
+  return Object.fromEntries(QUERY_COLUMN_KEYS.map(key => [key, true]));
+}
+
+function defaultDisplayPreferences() {
+  return {
+    timeFormat: 'full',
+    customTimeFormat: 'YYYY-MM-DD HH:mm:ss.SSS',
+    tableColumns: {
+      dashboard: allQueryColumnsVisible(),
+      queries: allQueryColumnsVisible(),
+    },
+  };
+}
+
+function loadDisplayPreferences() {
+  const defaults = defaultDisplayPreferences();
+  try {
+    const saved = JSON.parse(localStorage.getItem(DISPLAY_PREFERENCES_KEY) || 'null');
+    if (!saved || typeof saved !== 'object') return defaults;
+    if (TIME_FORMATS.includes(saved.timeFormat)) defaults.timeFormat = saved.timeFormat;
+    if (typeof saved.customTimeFormat === 'string') defaults.customTimeFormat = saved.customTimeFormat.slice(0, 100);
+    for (const table of ['dashboard', 'queries']) {
+      const columns = saved.tableColumns && saved.tableColumns[table] || saved.queryColumns;
+      if (columns && typeof columns === 'object') {
+        for (const key of QUERY_COLUMN_KEYS) {
+          if (typeof columns[key] === 'boolean') defaults.tableColumns[table][key] = columns[key];
+        }
+      }
+      if (!QUERY_COLUMN_KEYS.some(key => defaults.tableColumns[table][key])) defaults.tableColumns[table].time = true;
+    }
+  } catch (_) { /* malformed or unavailable browser storage: use defaults */ }
+  return defaults;
+}
 
 function tabFromHash() {
   const h = (location.hash || '').replace(/^#\/?/, '');
@@ -1591,6 +1712,29 @@ const I18N = {
     'settings.newPassword': 'New password (min 6 characters)',
     'settings.confirmPassword': 'Confirm new password',
     'settings.submitting': 'Submitting...',
+    'settings.display': 'Display Preferences',
+    'settings.displayBrowserHint': 'Saved only in this browser and applied immediately.',
+    'settings.displayReset': 'Reset Defaults',
+    'settings.timeFormat': 'Timestamp format',
+    'settings.timeFormatGroupDateTime': 'Date and time',
+    'settings.timeFormatGroupTimeOnly': 'Time only',
+    'settings.timeFormatGroupOther': 'Other',
+    'settings.timeFormatFull': 'Local 24-hour · milliseconds',
+    'settings.timeFormatSeconds': 'Local 24-hour · seconds',
+    'settings.timeFormatMinutes': 'Local 24-hour · minutes',
+    'settings.timeFormatTwelve': 'Local 12-hour · seconds',
+    'settings.timeFormatDate': 'Date only · YYYY-MM-DD',
+    'settings.timeFormatTimeFull': 'Time only · 24-hour · milliseconds',
+    'settings.timeFormatTimeSeconds': 'Time only · 24-hour · seconds',
+    'settings.timeFormatTimeMinutes': 'Time only · 24-hour · minutes',
+    'settings.timeFormatTimeTwelve': 'Time only · 12-hour · seconds',
+    'settings.timeFormatISO': 'ISO 8601 · UTC',
+    'settings.timeFormatCustom': 'Custom format',
+    'settings.timeFormatCustomPlaceholder': 'e.g. DD/MM/YYYY HH:mm:ss',
+    'settings.timeFormatTokens': 'Tokens: YYYY, MM, DD, HH, hh, mm, ss, SSS, A',
+    'settings.timeFormatHint': 'Used by query and log timestamps.',
+    'settings.timeFormatPreview': 'Preview:',
+    'table.columns': 'Columns',
     'toast.ruleSaved': 'Rule saved, effective immediately',
     'toast.removed': 'Removed',
     'toast.saved': 'Saved',
@@ -1878,6 +2022,29 @@ const I18N = {
     'settings.newPassword': '新密码（至少 6 位）',
     'settings.confirmPassword': '确认新密码',
     'settings.submitting': '提交中...',
+    'settings.display': '显示偏好',
+    'settings.displayBrowserHint': '仅保存在当前浏览器中，并立即生效。',
+    'settings.displayReset': '恢复默认',
+    'settings.timeFormat': '时间戳格式',
+    'settings.timeFormatGroupDateTime': '日期和时间',
+    'settings.timeFormatGroupTimeOnly': '仅时间',
+    'settings.timeFormatGroupOther': '其他',
+    'settings.timeFormatFull': '本地 24 小时制 · 毫秒',
+    'settings.timeFormatSeconds': '本地 24 小时制 · 秒',
+    'settings.timeFormatMinutes': '本地 24 小时制 · 分钟',
+    'settings.timeFormatTwelve': '本地 12 小时制 · 秒',
+    'settings.timeFormatDate': '仅日期 · YYYY-MM-DD',
+    'settings.timeFormatTimeFull': '仅时间 · 24 小时制 · 毫秒',
+    'settings.timeFormatTimeSeconds': '仅时间 · 24 小时制 · 秒',
+    'settings.timeFormatTimeMinutes': '仅时间 · 24 小时制 · 分钟',
+    'settings.timeFormatTimeTwelve': '仅时间 · 12 小时制 · 秒',
+    'settings.timeFormatISO': 'ISO 8601 · UTC',
+    'settings.timeFormatCustom': '自定义格式',
+    'settings.timeFormatCustomPlaceholder': '例如 DD/MM/YYYY HH:mm:ss',
+    'settings.timeFormatTokens': '可用标记：YYYY、MM、DD、HH、hh、mm、ss、SSS、A',
+    'settings.timeFormatHint': '用于查询和日志的时间戳。',
+    'settings.timeFormatPreview': '预览：',
+    'table.columns': '列',
     'toast.ruleSaved': '规则已保存，即时生效',
     'toast.removed': '已删除',
     'toast.saved': '已保存',
@@ -1914,6 +2081,8 @@ const app = createApp({
       setupError: '', setupLoading: false, setupStep: 1,
       checkingDns: false, dnsCheck: null, localIPs: [],
       token: localStorage.getItem('kaven_dns_token') || '',
+      displayPreferences: loadDisplayPreferences(),
+      displayPreviewTime: Date.now(),
       loginPassword: '', loginError: '', loginLoading: false,
       // The active tab lives in the URL hash (#/dashboard, #/rules, #/settings)
       tab: tabFromHash(),
@@ -1976,6 +2145,14 @@ const app = createApp({
     },
     sortedVisibleQueries() {
       return sortRows(this.visibleQueries, this.tableSort.queries, 'queries');
+    },
+    queryColumnOptions() {
+      const labels = {
+        time: 'query.time', client: 'query.client', domain: 'query.domain', type: 'query.type',
+        source: 'query.source', rule: 'query.ruleUpstream', result: 'query.result',
+        status: 'query.status', latency: 'query.latency',
+      };
+      return QUERY_COLUMN_KEYS.map(key => ({ key, label: this.t(labels[key]) }));
     },
     filteredDomains() {
       const q = this.domainsSearch.trim().toLowerCase();
@@ -2100,6 +2277,12 @@ const app = createApp({
     },
   },
   watch: {
+    displayPreferences: {
+      deep: true,
+      handler(value) {
+        try { localStorage.setItem(DISPLAY_PREFERENCES_KEY, JSON.stringify(value)); } catch (_) { /* storage may be unavailable */ }
+      },
+    },
     autoRefresh(enabled) {
       if (!this.authed) return;
       if (enabled && !document.hidden) {
@@ -2139,6 +2322,8 @@ const app = createApp({
   },
   async mounted() {
     this.applyLocaleMeta();
+    document.addEventListener('click', this.handleColumnMenuOutsideClick);
+    document.addEventListener('keydown', this.handleColumnMenuKeydown);
     // Hash routing: clicking a nav link changes the hash; back/forward and
     // page reloads go through here too
     window.addEventListener('hashchange', () => {
@@ -2195,6 +2380,8 @@ const app = createApp({
   },
   beforeUnmount() {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    document.removeEventListener('click', this.handleColumnMenuOutsideClick);
+    document.removeEventListener('keydown', this.handleColumnMenuKeydown);
     clearInterval(this._fallbackTimer);
     clearInterval(this._liveWatchdogTimer);
     clearTimeout(this._queryFilterTimer);
@@ -2218,6 +2405,18 @@ const app = createApp({
     applyLocaleMeta() {
       document.documentElement.lang = this.locale === 'zh' ? 'zh-CN' : 'en';
       document.title = this.t('title');
+    },
+    closeColumnMenus(except = null) {
+      document.querySelectorAll('.table-column-menu[open]').forEach(menu => {
+        if (menu !== except) menu.removeAttribute('open');
+      });
+    },
+    handleColumnMenuOutsideClick(event) {
+      const current = event.target.closest && event.target.closest('.table-column-menu');
+      this.closeColumnMenus(current);
+    },
+    handleColumnMenuKeydown(event) {
+      if (event.key === 'Escape') this.closeColumnMenus();
     },
     async fetchServer(path, options) {
       try {
@@ -2985,16 +3184,50 @@ const app = createApp({
     sourceText(s) {
       return { fixed: this.t('source.fixed'), cache: this.t('source.cache'), forward: this.t('source.forward') }[s] || s;
     },
+    isQueryColumnVisible(table, key) {
+      return this.displayPreferences.tableColumns[table][key] !== false;
+    },
+    visibleQueryColumnCount(table) {
+      return QUERY_COLUMN_KEYS.filter(key => this.isQueryColumnVisible(table, key)).length;
+    },
+    resetDisplayPreferences() {
+      this.displayPreferences = defaultDisplayPreferences();
+    },
     rcodeText(rcode) {
       const map = { 0: this.t('rcode.ok'), 2: this.t('rcode.servfail'), 3: this.t('rcode.nxdomain') };
       return map[rcode] || 'rcode ' + rcode;
     },
     fmtTime(t) {
       const d = new Date(t);
+      if (Number.isNaN(d.getTime())) return '-';
+      if (this.displayPreferences.timeFormat === 'iso') return d.toISOString();
       const p = n => String(n).padStart(2, '0');
+      const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+      const formatName = this.displayPreferences.timeFormat;
+      if (formatName === 'date') return date;
+      if (formatName === 'twelve' || formatName === 'timeTwelve') {
+        const suffix = d.getHours() < 12 ? 'AM' : 'PM';
+        const hour = d.getHours() % 12 || 12;
+        const twelveHourTime = `${p(hour)}:${p(d.getMinutes())}:${p(d.getSeconds())} ${suffix}`;
+        return formatName === 'timeTwelve' ? twelveHourTime : `${date} ${twelveHourTime}`;
+      }
+      const time = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+      if (formatName === 'minutes') return `${date} ${p(d.getHours())}:${p(d.getMinutes())}`;
+      if (formatName === 'timeMinutes') return `${p(d.getHours())}:${p(d.getMinutes())}`;
+      if (formatName === 'timeSeconds') return time;
+      if (formatName === 'seconds') return `${date} ${time}`;
       const ms = String(d.getMilliseconds()).padStart(3, '0');
-      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
-        `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${ms}`;
+      if (formatName === 'timeFull') return `${time}.${ms}`;
+      if (formatName === 'custom') {
+        const format = this.displayPreferences.customTimeFormat || 'YYYY-MM-DD HH:mm:ss.SSS';
+        const tokens = {
+          YYYY: String(d.getFullYear()), MM: p(d.getMonth() + 1), DD: p(d.getDate()),
+          HH: p(d.getHours()), hh: p(d.getHours() % 12 || 12), mm: p(d.getMinutes()),
+          ss: p(d.getSeconds()), SSS: ms, A: d.getHours() < 12 ? 'AM' : 'PM',
+        };
+        return format.slice(0, 100).replace(/YYYY|SSS|MM|DD|HH|hh|mm|ss|A/g, token => tokens[token]);
+      }
+      return `${date} ${time}.${ms}`;
     },
     fmtDateTime(t) {
       if (t == null) return '-';
