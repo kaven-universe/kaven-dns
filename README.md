@@ -88,7 +88,7 @@ nslookup test.local 127.0.0.1
 ### Prebuilt binaries
 
 Release artifacts cover Linux, Windows, and macOS on amd64 and arm64. The
-OpenWrt arm64 bundle is published alongside them. Build every target locally
+OpenWrt arm64 and ARMv7 bundles are published alongside them. Build every target locally
 from PowerShell with:
 
 ```powershell

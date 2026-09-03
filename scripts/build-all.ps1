@@ -73,6 +73,11 @@ $routerName = "kaven-dns_${fileVersion}_openwrt_arm64.tar.gz"
 $routerPath = Join-Path $outputRoot $routerName
 $routerHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $routerPath).Hash.ToLowerInvariant()
 $checksums.Add("$routerHash  $routerName")
+$routerV7Name = "kaven-dns_${fileVersion}_openwrt_armv7.tar.gz"
+$routerV7Path = Join-Path $outputRoot $routerV7Name
+& (Join-Path $PSScriptRoot 'build-router.ps1') -OutputDirectory $outputRoot -Version $Version -Architecture armv7
+$routerV7Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $routerV7Path).Hash.ToLowerInvariant()
+$checksums.Add("$routerV7Hash  $routerV7Name")
 $checksums | Sort-Object | Set-Content -LiteralPath (Join-Path $outputRoot 'SHA256SUMS') -Encoding ascii
 
 Write-Host "Created all release targets in $outputRoot"
